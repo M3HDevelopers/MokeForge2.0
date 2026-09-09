@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStudio } from '../store';
 import { makeThumbnail } from '../renderer';
-import { DEVICE_META, clamp, SHADOWS, FIT_MODES, MATERIALS, BG_PRESETS, PATTERNS, LIGHTING, POSITIONS } from '../templates';
-import { IcArrowL, IcDice, IcDownload, IcExport, IcFit, IcRedo, IcSave, IcStar, IcUndo, IcUpload, IcWand, IcZoomIn, IcZoomOut, LogoMark, IcPlus, IcTrash, IcCopy, IcEye, IcEyeOff, IcUp, IcDown } from '../icons';
+import { DEVICE_META, clamp, SHADOWS, BG_PRESETS } from '../templates';
+import { IcArrowL, IcDice, IcDownload, IcExport, IcFit, IcRedo, IcSave, IcStar, IcUndo, IcUpload, IcWand, IcZoomIn, IcZoomOut, LogoMark, IcCopy, IcTrash } from '../icons';
 import type { DeviceKind } from '../types';
+import { LeftPanel } from './LeftPanel';
+import { RightPanel } from './RightPanel';
+import { StagePreview } from './StagePreview';
 
 export function Editor() {
   const project = useStudio(s => s.project)!;

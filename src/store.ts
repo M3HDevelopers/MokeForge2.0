@@ -8,6 +8,13 @@ const LS_PROJECTS = 'mockforge.projects.v1';
 const LS_STATS = 'mockforge.stats.v1';
 const LS_FAVS = 'mockforge.favorites.v1';
 
+export function classifyAsset(a: Asset): 'desktop' | 'tablet' | 'mobile' {
+  const r = a.w / a.h;
+  if (r > 1.25) return 'desktop';
+  if (r >= 0.7) return 'tablet';
+  return 'mobile';
+}
+
 export function fileToAsset(file: File): Promise<Asset> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -118,6 +125,14 @@ interface StudioState {
   undo: () => void;
   redo: () => void;
   addFiles: (files: FileList | File[]) => Promise<void>;
+  addAsset: (a: Asset) => void;
+  removeAsset: (id: string) => void;
+  renameAsset: (id: string, name: string) => void;
+  duplicateAsset: (id: string) => void;
+  addTextBox: () => void;
+  removeTextBox: (id: string) => void;
+  removeIcon: (id: string) => void;
+  assignAsset: (deviceId: string, assetId: string) => void;
   addDevice: (kind: DeviceKind) => void;
   applyLayout: (id: string) => void;
   applyComposition: (id: string) => void;
@@ -292,6 +307,67 @@ export const useStudio = create<StudioState>((set, get) => ({
     set({ project: { ...p, updatedAt: Date.now() }, dirty: true });
     if (added.length) get().toast(`${added.length} screenshot${added.length > 1 ? 's' : ''} added`);
     get().save(true);
+  },
+
+  addAsset: (a) => {
+    get().update(p => ({ ...p, assets: [...p.assets, a] }), false);
+  },
+
+  removeAsset: (id) => {
+    get().update(p => ({ ...p, assets: p.assets.filter(a => a.id !== id), devices: p.devices.map(d => d.assetId === id ? { ...d, assetId: null } : d) }), false);
+  },
+
+  renameAsset: (id, name) => {
+    get().update(p => ({ ...p, assets: p.assets.map(a => a.id === id ? { ...a, name: name || a.name } : a) }), false);
+  },
+
+  duplicateAsset: (id) => {
+    const a = get().project?.assets.find(x => x.id === id);
+    if (!a) return;
+    get().update(p => ({ ...p, assets: [...p.assets, { ...a, id: uid(), name: `${a.name} copy` }] }), false);
+  },
+
+  addTextBox: () => {
+    const id = uid();
+    get().update(p => ({
+      ...p,
+      textboxes: [...p.textboxes, {
+        id,
+        text: 'Your text here',
+        x: 0.5,
+        y: 0.5,
+        width: 0.3,
+        fontSize: 24,
+        fontFamily: 'Space Grotesk',
+        fontWeight: 600,
+        color: '#ffffff',
+        align: 'center',
+        bgType: 'none',
+        bgColor: '#000000',
+        padding: 12,
+        borderRadius: 8,
+        opacity: 1,
+        rotation: 0,
+        shadow: false,
+        glow: false,
+        glowColor: '#ff6b3d',
+      }],
+    }));
+    set({ selection: { kind: 'textbox', id } });
+  },
+
+  removeTextBox: (id) => {
+    get().update(p => ({ ...p, textboxes: p.textboxes.filter(t => t.id !== id) }));
+    set(s => s.selection?.id === id ? { selection: null } : s);
+  },
+
+  removeIcon: (id) => {
+    get().update(p => ({ ...p, icons: p.icons.filter(i => i.id !== id) }));
+    set(s => s.selection?.id === id ? { selection: null } : s);
+  },
+
+  assignAsset: (deviceId, assetId) => {
+    get().update(p => ({ ...p, devices: p.devices.map(d => d.id === deviceId ? { ...d, assetId } : d) }), false);
   },
 
   addDevice: (kind) => {

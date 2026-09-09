@@ -191,6 +191,32 @@ export const FIT_MODES: { id: FitMode; label: string }[] = [
 
 export const POSITIONS: PosPreset[] = ['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'];
 
+export const TECH_BADGES = [
+  'React', 'TypeScript', 'Node.js', 'Next.js', 'Vue', 'Angular', 'Svelte', 'MongoDB', 'PostgreSQL',
+  'MySQL', 'Tailwind', 'Express', 'Python', 'Django', 'Firebase', 'Supabase', 'Flutter', 'React Native',
+  'Figma', 'GraphQL', 'Docker', 'AWS', 'Vite', 'Redux', 'Prisma', 'Rust', 'Go', 'Swift', 'Kotlin', 'Java',
+];
+
+export interface TypoPreset { id: string; label: string; scale: number; pos: PosPreset; badges: boolean; spacingNote: string }
+export const TYPO_PRESETS: TypoPreset[] = [
+  { id: 'saas', label: 'Modern SaaS', scale: 1.0, pos: 'bottom-left', badges: true, spacingNote: 'balanced' },
+  { id: 'editorial', label: 'Editorial', scale: 1.35, pos: 'top-left', badges: false, spacingNote: 'wide' },
+  { id: 'minimal', label: 'Minimal', scale: 0.8, pos: 'bottom-center', badges: false, spacingNote: 'airy' },
+  { id: 'bold', label: 'Bold', scale: 1.5, pos: 'center-left', badges: true, spacingNote: 'tight' },
+  { id: 'technical', label: 'Technical', scale: 0.9, pos: 'bottom-left', badges: true, spacingNote: 'mono' },
+  { id: 'luxury', label: 'Luxury', scale: 1.2, pos: 'bottom-right', badges: false, spacingNote: 'serif' },
+  { id: 'developer', label: 'Developer', scale: 0.95, pos: 'top-left', badges: true, spacingNote: 'mono' },
+  { id: 'corporate', label: 'Corporate', scale: 1.05, pos: 'bottom-left', badges: true, spacingNote: 'clean' },
+];
+
+export function suggestFitMode(screenAspect: number, imageAspect: number): FitMode {
+  const ratio = screenAspect / imageAspect;
+  if (ratio > 0.9 && ratio < 1.1) return 'contain';
+  if (ratio > 1.3) return 'cover';
+  if (ratio < 0.77) return 'cover';
+  return 'cover';
+}
+
 export const DECO_SETS: { id: DecoSet; label: string }[] = [
   { id: 'none', label: 'None' }, { id: 'orbs', label: 'Orbs' }, { id: 'rings', label: 'Rings' },
   { id: 'grid', label: 'Dot field' }, { id: 'sparkles', label: 'Sparkles' }, { id: 'waves', label: 'Waves' },
