@@ -1,6 +1,11 @@
 import { create } from 'zustand';
-import type { Asset, DesignSnapshot, DeviceKind, GenLocks, Mood, Project, Selection, SurpriseMode, Toast } from './types';
-import { applyLayoutPositions, clamp, DEVICE_META, makeDefaultProject, makeDevice, migrate, uid } from './templates';
+import type {
+  Asset, DecoDepth, DesignSnapshot, DeviceKind, GenLocks, Mood, Project, Selection, SurpriseMode, Toast,
+} from './types';
+import {
+  applyLayoutPositions, clamp, DEVICE_META, makeDefaultProject, makeDevice, migrate,
+  randomizeProject, uid,
+} from './templates';
 import { COMPOSITIONS, generateDesign, generateVariations, responsiveShowcase, scoreDesign } from './engine';
 import { makeThumbnail } from './renderer';
 
@@ -8,13 +13,7 @@ const LS_PROJECTS = 'mockforge.projects.v1';
 const LS_STATS = 'mockforge.stats.v1';
 const LS_FAVS = 'mockforge.favorites.v1';
 
-export function classifyAsset(a: Asset): 'desktop' | 'tablet' | 'mobile' {
-  const r = a.w / a.h;
-  if (r > 1.25) return 'desktop';
-  if (r >= 0.7) return 'tablet';
-  return 'mobile';
-}
-
+/* ---------- image helpers ---------- */
 export function fileToAsset(file: File): Promise<Asset> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -61,6 +60,14 @@ export function urlToAsset(url: string, name: string): Promise<Asset> {
   });
 }
 
+/* classify a screenshot by aspect ratio (heuristic, user can override) */
+export function classifyAsset(a: Asset): 'desktop' | 'tablet' | 'mobile' {
+  const r = a.w / a.h;
+  if (r > 1.25) return 'desktop';
+  if (r >= 0.7) return 'tablet';
+  return 'mobile';
+}
+
 function loadStats(): { totalExports: number } {
   try { return JSON.parse(localStorage.getItem(LS_STATS) || '{"totalExports":0}'); }
   catch { return { totalExports: 0 }; }
@@ -70,20 +77,6 @@ function loadFavs(): DesignSnapshot[] {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-function snapshot(p: Project, label: string, thumb: string): DesignSnapshot {
-  const { assets, ...rest } = p;
-  void assets;
-  return { id: uid(), label, at: Date.now(), thumb, score: scoreDesign(p).total, project: rest };
-}
-function mergeSnapshot(cur: Project, s: DesignSnapshot): Project {
-  return migrate({ ...s.project, id: cur.id, name: cur.name, assets: cur.assets, thumbnail: cur.thumbnail, exportCount: cur.exportCount });
-}
-
-function persist(projects: Project[]): boolean {
-  try { localStorage.setItem(LS_PROJECTS, JSON.stringify(projects)); return true; }
-  catch { return false; }
-}
 
 interface StudioState {
   booted: boolean;
@@ -100,6 +93,8 @@ interface StudioState {
   exportOpen: boolean;
   toasts: Toast[];
   totalExports: number;
+
+  /* new: generation */
   mood: Mood;
   locks: GenLocks;
   history: DesignSnapshot[];
@@ -109,30 +104,44 @@ interface StudioState {
   genOpen: boolean;
   compare: [DesignSnapshot | null, DesignSnapshot | null];
   compareOpen: boolean;
+  generateConfig: {
+    bgType: 'auto' | 'vector' | 'image' | 'hybrid';
+    includeIcons: boolean;
+    iconCount: number;
+    includeDeco: boolean;
+    decoIntensity: number;
+    includeText: boolean;
+  };
+  setGenerateConfig: (config: Partial<StudioState['generateConfig']>) => void;
+  
+  // Theme variations from color extraction
+  themeVariations: import('./utils/colorExtraction').ThemeVariation[];
+  setThemeVariations: (variations: import('./utils/colorExtraction').ThemeVariation[]) => void;
 
   boot: () => void;
   goto: (v: 'dashboard' | 'editor') => void;
   toast: (msg: string, tone?: Toast['tone']) => void;
   dismissToast: (id: number) => void;
+
   createProject: (name: string, type: string, cw: number, ch: number, quickKind?: DeviceKind) => void;
   openProject: (id: string) => void;
   closeEditor: () => void;
   deleteProject: (id: string) => void;
   duplicateProject: (id: string) => void;
   importProject: (p: Project) => void;
+
   checkpoint: () => void;
   update: (fn: (p: Project) => Project, history?: boolean) => void;
   undo: () => void;
   redo: () => void;
+
   addFiles: (files: FileList | File[]) => Promise<void>;
   addAsset: (a: Asset) => void;
   removeAsset: (id: string) => void;
   renameAsset: (id: string, name: string) => void;
   duplicateAsset: (id: string) => void;
-  addTextBox: () => void;
-  removeTextBox: (id: string) => void;
-  removeIcon: (id: string) => void;
   assignAsset: (deviceId: string, assetId: string) => void;
+
   addDevice: (kind: DeviceKind) => void;
   applyLayout: (id: string) => void;
   applyComposition: (id: string) => void;
@@ -140,13 +149,31 @@ interface StudioState {
   removeDevice: (id: string) => void;
   duplicateDevice: (id: string) => void;
   reorderDevice: (id: string, dir: -1 | 1) => void;
+  setDeviceZ: (id: string, z: number) => void;
   alignDevices: (axis: 'h' | 'v' | 'center') => void;
   distributeDevices: (axis: 'h' | 'v') => void;
+
+  removeIcon: (id: string) => void;
+  addIconsAroundDevice: (deviceId: string, iconIds: string[]) => void;
+  addTechStackIcons: (techStack: string[]) => void;
+  autoClusterIcons: () => void;
+  
+  // Text box actions
+  addTextBox: () => void;
+  removeTextBox: (id: string) => void;
+  
+  // Clipboard & Lock System
+  clipboard: { type: string; data: any } | null;
+  copySelection: () => void;
+  pasteClipboard: () => void;
+  lockObject: (kind: string, id: string) => void;
+  unlockObject: (kind: string, id: string) => void;
+  lockedObjects: Set<string>;
   randomize: () => void;
   setMood: (m: Mood) => void;
   toggleLock: (k: keyof GenLocks) => void;
   generate: (mode: SurpriseMode) => void;
-  makeVariations: () => Promise<void>;
+  makeVariations: (type?: 'vector' | 'image' | 'hybrid') => Promise<DesignSnapshot[]>;
   applyVariation: (id: string) => void;
   setVariationsOpen: (v: boolean) => void;
   setGenOpen: (v: boolean) => void;
@@ -158,13 +185,27 @@ interface StudioState {
   setCompare: (slot: 0 | 1, s: DesignSnapshot | null) => void;
   setCompareOpen: (v: boolean) => void;
   pushHistoryNext: () => Promise<void>;
+
   exportMockup: () => void;
   importMockup: (file: File) => Promise<void>;
+
   save: (silent?: boolean) => void;
   setZoom: (z: number) => void;
   setSelection: (s: Selection | null) => void;
+  addToSelection: (kind: Selection['kind'], id: string) => void;
+  removeFromSelection: (kind: Selection['kind'], id: string) => void;
+  clearSelection: () => void;
   setExportOpen: (v: boolean) => void;
   trackExport: () => void;
+}
+
+function snapshot(p: Project, label: string, thumb: string): DesignSnapshot {
+  const { assets, ...rest } = p;
+  void assets;
+  return { id: uid(), label, at: Date.now(), thumb, score: scoreDesign(p).total, project: rest };
+}
+function mergeSnapshot(cur: Project, s: DesignSnapshot): Project {
+  return migrate({ ...s.project, id: cur.id, name: cur.name, assets: cur.assets, thumbnail: cur.thumbnail, exportCount: cur.exportCount });
 }
 
 export const useStudio = create<StudioState>((set, get) => ({
@@ -182,6 +223,7 @@ export const useStudio = create<StudioState>((set, get) => ({
   exportOpen: false,
   toasts: [],
   totalExports: loadStats().totalExports,
+
   mood: 'auto',
   locks: { devices: false, background: false, decoration: false, text: false, logo: false },
   history: [],
@@ -191,9 +233,128 @@ export const useStudio = create<StudioState>((set, get) => ({
   genOpen: false,
   compare: [null, null],
   compareOpen: false,
-
-  boot: () => {
-    if (get().booted) return;
+  generateConfig: {
+    bgType: 'auto',
+    includeIcons: true,
+    iconCount: 3,
+    includeDeco: true,
+    decoIntensity: 50,
+    includeText: true,
+  },
+  setGenerateConfig: (config) => set(s => ({ generateConfig: { ...s.generateConfig, ...config } })),
+  
+  themeVariations: [],
+  setThemeVariations: (variations) => set({ themeVariations: variations }),
+  
+  // Clipboard & Lock System
+  clipboard: null,
+  lockedObjects: new Set(),
+  
+  copySelection: () => {
+    const { selection, project } = get();
+    if (!selection || !project) return;
+    
+    let data = null;
+    let type = '';
+    
+    if (selection.kind === 'device') {
+      const device = project.devices.find(d => d.id === selection.id);
+      if (device) {
+        data = { ...device };
+        type = 'device';
+      }
+    } else if (selection.kind === 'icon') {
+      const icon = project.icons.find(i => i.id === selection.id);
+      if (icon) {
+        data = { ...icon };
+        type = 'icon';
+      }
+    } else if (selection.kind === 'textbox') {
+      const textbox = project.textboxes.find(t => t.id === selection.id);
+      if (textbox) {
+        data = { ...textbox };
+        type = 'textbox';
+      }
+    } else if (selection.kind === 'deco') {
+      const deco = project.decos.find(d => d.id === selection.id);
+      if (deco) {
+        data = { ...deco };
+        type = 'deco';
+      }
+    }
+    
+    if (data) {
+      set({ clipboard: { type, data } });
+      get().toast('Copied to clipboard');
+    }
+  },
+  
+  pasteClipboard: () => {
+    const { clipboard, project } = get();
+    if (!clipboard || !project) return;
+    
+    get().checkpoint();
+    
+    const newData = { ...clipboard.data, id: uid() };
+    
+    // Offset the pasted object slightly
+    if ('x' in newData && 'y' in newData) {
+      newData.x += 20;
+      newData.y += 20;
+    }
+    
+    if (clipboard.type === 'device') {
+      set(s => ({
+        project: s.project ? {
+          ...s.project,
+          devices: [...s.project.devices, newData]
+        } : null
+      }));
+    } else if (clipboard.type === 'icon') {
+      set(s => ({
+        project: s.project ? {
+          ...s.project,
+          icons: [...s.project.icons, newData]
+        } : null
+      }));
+    } else if (clipboard.type === 'textbox') {
+      set(s => ({
+        project: s.project ? {
+          ...s.project,
+          textboxes: [...s.project.textboxes, newData]
+        } : null
+      }));
+    } else if (clipboard.type === 'deco') {
+      set(s => ({
+        project: s.project ? {
+          ...s.project,
+          decos: [...s.project.decos, newData]
+        } : null
+      }));
+    }
+    
+    get().toast('Pasted from clipboard');
+  },
+  
+  lockObject: (kind, id) => {
+    const key = `${kind}:${id}`;
+    set(s => ({
+      lockedObjects: new Set([...s.lockedObjects, key])
+    }));
+    get().toast('Object locked');
+  },
+  
+  unlockObject: (kind, id) => {
+    const key = `${kind}:${id}`;
+    set(s => {
+      const newSet = new Set(s.lockedObjects);
+      newSet.delete(key);
+      return { lockedObjects: newSet };
+    });
+    get().toast('Object unlocked');
+  },
+  
+  boot: () => {    if (get().booted) return;
     let projects: Project[] = [];
     try { projects = (JSON.parse(localStorage.getItem(LS_PROJECTS) || '[]') as Project[]).map(migrate); } catch { /* corrupted */ }
     set({ projects, booted: true });
@@ -277,6 +438,8 @@ export const useStudio = create<StudioState>((set, get) => ({
       project: migrate({ ...prev, assets: project.assets }),
       dirty: true,
     }));
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => get().save(true), 1400);
   },
 
   redo: () => {
@@ -289,32 +452,50 @@ export const useStudio = create<StudioState>((set, get) => ({
       project: migrate({ ...next, assets: project.assets }),
       dirty: true,
     }));
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => get().save(true), 1400);
   },
 
-  addFiles: async (files) => {
-    const list = Array.from(files).filter(f => f.type.startsWith('image/'));
+  addFiles: async (files: FileList | File[]) => {
+    const list = Array.from(files).filter((f: File) => f.type.startsWith('image/'));
     if (!list.length) { get().toast('Only image files are supported', 'err'); return; }
     const cur = get().project;
     if (!cur) return;
     let p = cur;
     let added: Asset[] = [];
     for (const f of list) {
-      try { const a = await fileToAsset(f); added = [...added, a]; p = { ...p, assets: [...p.assets, a] }; }
-      catch { get().toast(`Could not read ${f.name}`, 'err'); }
+      try {
+        const a = await fileToAsset(f);
+        added = [...added, a];
+        p = { ...p, assets: [...p.assets, a] };
+      } catch { get().toast(`Could not read ${f.name}`, 'err'); }
     }
     let ai = 0;
     p = { ...p, devices: p.devices.map(d => d.assetId ? d : (added[ai] ? { ...d, assetId: added[ai++]!.id } : d)) };
     set({ project: { ...p, updatedAt: Date.now() }, dirty: true });
-    if (added.length) get().toast(`${added.length} screenshot${added.length > 1 ? 's' : ''} added`);
+    if (added.length) {
+      const kinds = added.map(classifyAsset);
+      get().toast(`${added.length} screenshot${added.length > 1 ? 's' : ''} added (${kinds.join(', ')})`);
+    }
     get().save(true);
   },
 
   addAsset: (a) => {
-    get().update(p => ({ ...p, assets: [...p.assets, a] }), false);
+    get().update(p => {
+      let ai = 0;
+      const devices = p.devices.map(d => d.assetId ? d : (ai++ === 0 ? { ...d, assetId: a.id } : d));
+      return { ...p, assets: [...p.assets, a], devices };
+    }, false);
   },
 
   removeAsset: (id) => {
-    get().update(p => ({ ...p, assets: p.assets.filter(a => a.id !== id), devices: p.devices.map(d => d.assetId === id ? { ...d, assetId: null } : d) }), false);
+    get().update(p => ({
+      ...p,
+      assets: p.assets.filter(a => a.id !== id),
+      devices: p.devices.map(d => d.assetId === id ? { ...d, assetId: null } : d),
+      logo: p.logo.assetId === id ? { ...p.logo, assetId: null, enabled: false } : p.logo,
+    }), false);
+    get().toast('Asset removed', 'info');
   },
 
   renameAsset: (id, name) => {
@@ -322,52 +503,16 @@ export const useStudio = create<StudioState>((set, get) => ({
   },
 
   duplicateAsset: (id) => {
-    const a = get().project?.assets.find(x => x.id === id);
+    const cur = get().project;
+    const a = cur?.assets.find(x => x.id === id);
     if (!a) return;
     get().update(p => ({ ...p, assets: [...p.assets, { ...a, id: uid(), name: `${a.name} copy` }] }), false);
-  },
-
-  addTextBox: () => {
-    const id = uid();
-    get().update(p => ({
-      ...p,
-      textboxes: [...p.textboxes, {
-        id,
-        text: 'Your text here',
-        x: 0.5,
-        y: 0.5,
-        width: 0.3,
-        fontSize: 24,
-        fontFamily: 'Space Grotesk',
-        fontWeight: 600,
-        color: '#ffffff',
-        align: 'center',
-        bgType: 'none',
-        bgColor: '#000000',
-        padding: 12,
-        borderRadius: 8,
-        opacity: 1,
-        rotation: 0,
-        shadow: false,
-        glow: false,
-        glowColor: '#ff6b3d',
-      }],
-    }));
-    set({ selection: { kind: 'textbox', id } });
-  },
-
-  removeTextBox: (id) => {
-    get().update(p => ({ ...p, textboxes: p.textboxes.filter(t => t.id !== id) }));
-    set(s => s.selection?.id === id ? { selection: null } : s);
-  },
-
-  removeIcon: (id) => {
-    get().update(p => ({ ...p, icons: p.icons.filter(i => i.id !== id) }));
-    set(s => s.selection?.id === id ? { selection: null } : s);
+    get().toast('Screenshot duplicated');
   },
 
   assignAsset: (deviceId, assetId) => {
     get().update(p => ({ ...p, devices: p.devices.map(d => d.id === deviceId ? { ...d, assetId } : d) }), false);
+    get().toast('Screenshot placed on device');
   },
 
   addDevice: (kind) => {
@@ -428,6 +573,130 @@ export const useStudio = create<StudioState>((set, get) => ({
     set(s => s.selection?.id === id ? { selection: null } : s);
   },
 
+  removeIcon: (id) => {
+    get().update(p => ({ ...p, icons: p.icons.filter(i => i.id !== id) }));
+    set(s => s.selection?.id === id ? { selection: null } : s);
+  },
+
+  addTextBox: () => {
+    const id = uid();
+    get().update(p => ({
+      ...p,
+      textboxes: [...p.textboxes, {
+        id,
+        text: 'Your text here',
+        x: 0.5,
+        y: 0.5,
+        width: 0.3,
+        fontSize: 24,
+        fontFamily: 'Space Grotesk',
+        fontWeight: 600,
+        color: '#ffffff',
+        align: 'center',
+        bgType: 'none',
+        bgColor: '#000000',
+        padding: 12,
+        borderRadius: 8,
+        opacity: 1,
+        rotation: 0,
+        shadow: false,
+        glow: false,
+        glowColor: '#ff6b3d',
+      }],
+    }));
+    set({ selection: { kind: 'textbox', id } });
+  },
+
+  removeTextBox: (id) => {
+    get().update(p => ({ ...p, textboxes: p.textboxes.filter(t => t.id !== id) }));
+    set(s => s.selection?.id === id ? { selection: null } : s);
+  },
+
+  addIconsAroundDevice: (deviceId, iconIds) => {
+    const cur = get().project;
+    if (!cur) return;
+    const device = cur.devices.find(d => d.id === deviceId);
+    if (!device) return;
+    
+    get().checkpoint();
+    const cx = device.x + device.w / 2;
+    const cy = device.y + (device.w / DEVICE_META[device.kind].aspect) / 2;
+    const radius = Math.max(device.w, device.w / DEVICE_META[device.kind].aspect) * 0.7;
+    
+    const newIcons = iconIds.map((iconId, i) => {
+      const angle = (i / iconIds.length) * Math.PI * 2;
+      return {
+        id: uid(),
+        iconId,
+        x: (cx + Math.cos(angle) * radius) / cur.canvas.w,
+        y: (cy + Math.sin(angle) * radius) / cur.canvas.h,
+        size: 0.05,
+        color: '#ffffff',
+        opacity: 0.9,
+        rotation: 0,
+        bgStyle: 'circle' as const,
+        bgColor: cur.accents.a1,
+        shadow: true,
+        glow: false,
+      };
+    });
+    
+    get().update(p => ({ ...p, icons: [...p.icons, ...newIcons] }), false);
+    get().toast(`${iconIds.length} icons added around device`);
+  },
+
+  addTechStackIcons: (techStack) => {
+    const cur = get().project;
+    if (!cur || !cur.devices.length) return;
+    
+    // Map tech names to icon IDs
+    const techToIcon: Record<string, string> = {
+      'react': 'react',
+      'vue': 'vue',
+      'angular': 'angular',
+      'nextjs': 'nextjs',
+      'node': 'node',
+      'typescript': 'typescript',
+      'javascript': 'js',
+      'html': 'html',
+      'css': 'css',
+      'tailwind': 'tailwind',
+    };
+    
+    const iconIds = techStack
+      .map(tech => techToIcon[tech.toLowerCase()])
+      .filter(Boolean);
+    
+    if (iconIds.length > 0) {
+      get().addIconsAroundDevice(cur.devices[0].id, iconIds);
+    }
+  },
+
+  autoClusterIcons: () => {
+    const cur = get().project;
+    if (!cur || cur.icons.length < 2) return;
+    
+    get().checkpoint();
+    // Arrange icons in a grid pattern
+    const cols = Math.ceil(Math.sqrt(cur.icons.length));
+    const startX = 0.1;
+    const startY = 0.1;
+    const spacing = 0.08;
+    
+    const updatedIcons = cur.icons.map((icon, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      return {
+        ...icon,
+        x: startX + col * spacing,
+        y: startY + row * spacing,
+      };
+    });
+    
+    get().update(p => ({ ...p, icons: updatedIcons }), false);
+    get().toast('Icons clustered automatically');
+  },
+
   duplicateDevice: (id) => {
     get().update(p => {
       const d = p.devices.find(x => x.id === id);
@@ -450,6 +719,10 @@ export const useStudio = create<StudioState>((set, get) => ({
     });
   },
 
+  setDeviceZ: (id, z) => {
+    get().update(p => ({ ...p, devices: p.devices.map(d => d.id === id ? { ...d, z } : d) }), false);
+  },
+
   alignDevices: (axis) => {
     get().update(p => {
       if (p.devices.length < 2) return p;
@@ -462,6 +735,7 @@ export const useStudio = create<StudioState>((set, get) => ({
         const x = Math.min(...boxes.map(b => b.d.x));
         return { ...p, devices: p.devices.map(d => ({ ...d, x })) };
       }
+      // center: align vertical centers
       const cy = boxes.reduce((s, b) => s + b.d.y + b.h / 2, 0) / boxes.length;
       return { ...p, devices: p.devices.map(d => ({ ...d, y: cy - (d.w / DEVICE_META[d.kind].aspect) / 2 })) };
     });
@@ -481,7 +755,10 @@ export const useStudio = create<StudioState>((set, get) => ({
     get().toast('Devices distributed');
   },
 
-  randomize: () => { get().generate('all'); },
+  randomize: () => {
+    get().generate('all');
+  },
+
   setMood: (m) => set({ mood: m }),
   toggleLock: (k) => set(s => ({ locks: { ...s.locks, [k]: !s.locks[k] } })),
 
@@ -489,26 +766,41 @@ export const useStudio = create<StudioState>((set, get) => ({
     const cur = get().project;
     if (!cur) return;
     get().checkpoint();
-    const { mood, locks } = get();
+    const { mood, locks, generateConfig } = get();
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
-    const next = generateDesign(cur, { mode, mood, seed, locks });
+    const next = generateDesign(cur, { 
+      mode, 
+      mood, 
+      seed, 
+      locks,
+      bgType: generateConfig.bgType,
+      includeIcons: generateConfig.includeIcons,
+      iconCount: generateConfig.iconCount,
+      includeDeco: generateConfig.includeDeco,
+      decoIntensity: generateConfig.decoIntensity,
+      includeText: generateConfig.includeText,
+    });
     set({ project: { ...next, assets: cur.assets }, dirty: true });
     void get().pushHistoryNext();
     const label = mode === 'all' ? 'Surprise me' : `Randomize ${mode}`;
     get().toast(`${label} · score ${scoreDesign(next).total}`, 'info');
   },
 
-  makeVariations: async () => {
+  makeVariations: async (type?: 'vector' | 'image' | 'hybrid') => {
     const cur = get().project;
-    if (!cur) return;
-    const list = generateVariations(cur, 10, get().mood);
+    if (!cur) return [];
+    const themeVars = get().themeVariations;
+    const list = generateVariations(cur, 10, get().mood, type, themeVars.length > 0 ? themeVars : undefined);
     const snaps: DesignSnapshot[] = [];
     for (let i = 0; i < list.length; i++) {
       const p = { ...list[i], assets: cur.assets };
       const thumb = await makeThumbnail(p, 320);
-      snaps.push(snapshot(p, `Variation ${String(i + 1).padStart(2, '0')}`, thumb));
+      const typeLabel = type ? ` (${type})` : '';
+      const themeLabel = themeVars.length > 0 ? ` [${themeVars[i % themeVars.length].type}]` : '';
+      snaps.push(snapshot(p, `Variation ${String(i + 1).padStart(2, '0')}${typeLabel}${themeLabel}`, thumb));
     }
     set({ variations: snaps, variationsOpen: true });
+    return snaps;
   },
 
   applyVariation: (id) => {
@@ -592,16 +884,26 @@ export const useStudio = create<StudioState>((set, get) => ({
     }
   },
 
-  save: (silent = false) => {
+  save: async (silent = false) => {
     const { project } = get();
     if (!project) return;
     set({ saving: true });
+    
+    // Generate thumbnail
+    let thumbnail = project.thumbnail;
+    try {
+      thumbnail = await makeThumbnail(project, 400);
+    } catch (e) {
+      console.error('Failed to generate thumbnail:', e);
+    }
+    
+    const projectWithThumb = { ...project, thumbnail };
     const next = get().projects.some(x => x.id === project.id)
-      ? get().projects.map(x => x.id === project.id ? { ...project, thumbnail: x.thumbnail } : x)
-      : [project, ...get().projects];
+      ? get().projects.map(x => x.id === project.id ? projectWithThumb : x)
+      : [projectWithThumb, ...get().projects];
     const ok = persist(next);
     if (ok) {
-      set(s => ({ projects: next, dirty: false, savedAt: Date.now(), saving: false, project: s.project ? { ...s.project } : null }));
+      set(s => ({ projects: next, dirty: false, savedAt: Date.now(), saving: false, project: s.project ? { ...projectWithThumb } : null }));
       if (!silent) get().toast('Project saved');
     } else {
       set({ saving: false });
@@ -611,6 +913,33 @@ export const useStudio = create<StudioState>((set, get) => ({
 
   setZoom: (z) => set({ zoom: clamp(z, 0.1, 2) }),
   setSelection: (sel) => set({ selection: sel }),
+  
+  addToSelection: (kind, id) => {
+    const { selection } = get();
+    if (!selection) {
+      set({ selection: { kind, id, ids: [id] } });
+    } else if (selection.kind === kind) {
+      const ids = selection.ids || [selection.id!];
+      if (!ids.includes(id)) {
+        set({ selection: { ...selection, ids: [...ids, id], id: ids[0] } });
+      }
+    }
+  },
+  
+  removeFromSelection: (kind, id) => {
+    const { selection } = get();
+    if (!selection) return;
+    if (selection.kind === kind) {
+      const ids = (selection.ids || [selection.id!]).filter(i => i !== id);
+      if (ids.length === 0) {
+        set({ selection: null });
+      } else {
+        set({ selection: { ...selection, ids, id: ids[0] } });
+      }
+    }
+  },
+  
+  clearSelection: () => set({ selection: null }),
   setExportOpen: (v) => set({ exportOpen: v }),
 
   trackExport: () => {
@@ -625,3 +954,12 @@ export const useStudio = create<StudioState>((set, get) => ({
     set({ totalExports: total });
   },
 }));
+
+function persist(projects: Project[]): boolean {
+  try {
+    localStorage.setItem(LS_PROJECTS, JSON.stringify(projects));
+    return true;
+  } catch {
+    return false;
+  }
+}
