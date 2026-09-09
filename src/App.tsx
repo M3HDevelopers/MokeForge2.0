@@ -34,8 +34,32 @@ export default function App() {
   const project = useStudio(s => s.project);
   const boot = useStudio(s => s.boot);
 
-  useEffect(() => { boot(); }, [boot]);
-  if (!booted) return null;
+  useEffect(() => { 
+    try {
+      boot(); 
+    } catch (error) {
+      console.error('Boot error:', error);
+    }
+  }, [boot]);
+  
+  if (!booted) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh',
+        backgroundColor: '#101114',
+        color: '#e9e7e1',
+        fontFamily: 'sans-serif'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: '32px', marginBottom: '10px', color: '#ff6b3d' }}>Loading MockForge...</h1>
+          <p style={{ fontSize: '16px', opacity: 0.7 }}>Please wait...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full bg-ink text-fg overflow-hidden">
