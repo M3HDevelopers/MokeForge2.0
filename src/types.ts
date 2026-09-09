@@ -10,16 +10,17 @@ export type PosPreset =
   | 'center-left' | 'center' | 'center-right'
   | 'bottom-left' | 'bottom-center' | 'bottom-right';
 
+// Custom Text Box types
 export type TextBoxAlign = 'left' | 'center' | 'right';
 export type TextBoxBgType = 'none' | 'solid' | 'gradient' | 'glass';
 
 export interface TextBox {
   id: string;
   text: string;
-  x: number;
-  y: number;
-  width: number;
-  fontSize: number;
+  x: number; // percentage 0-1
+  y: number; // percentage 0-1
+  width: number; // percentage 0-1
+  fontSize: number; // px
   fontFamily: string;
   fontWeight: number;
   color: string;
@@ -27,15 +28,16 @@ export interface TextBox {
   bgType: TextBoxBgType;
   bgColor: string;
   bgGradient?: string;
-  padding: number;
-  borderRadius: number;
-  opacity: number;
-  rotation: number;
+  padding: number; // px
+  borderRadius: number; // px
+  opacity: number; // 0-1
+  rotation: number; // degrees
   shadow: boolean;
   glow: boolean;
   glowColor: string;
 }
 
+/* ================= new enums ================= */
 export type BgStyle = 'plain' | 'studio' | 'architectural' | 'abstract' | 'grid' | 'editorial' | 'tech' | 'glass';
 export type LightType = 'none' | 'top' | 'bottom' | 'left' | 'right' | 'center' | 'ambient';
 export type Material = 'matte' | 'glossy' | 'glass' | 'metallic';
@@ -59,6 +61,7 @@ export type Mood =
   | 'luxury' | 'impact' | 'technical';
 export type SurpriseMode = 'all' | 'background' | 'layout' | 'colors' | 'decor' | 'devices';
 
+/* ================= image background types ================= */
 export type ImageCategory = 'abstract' | '3d' | 'studio' | 'architectural' | 'glass' | 'paper' | 'tech' | 'editorial' | 'custom';
 export type BackgroundKind = 'procedural' | 'image' | 'hybrid' | 'auto';
 export type ImageFit = 'cover' | 'contain' | 'fill' | 'stretch' | 'center';
@@ -112,6 +115,7 @@ export interface IconLayer {
   gradient?: { from: string; to: string };
 }
 
+/* ================= interfaces ================= */
 export interface Asset {
   id: string;
   name: string;
@@ -122,7 +126,7 @@ export interface Asset {
 
 export interface Lighting {
   type: LightType;
-  intensity: number;
+  intensity: number; // 0..1
 }
 
 export interface Background {
@@ -132,11 +136,13 @@ export interface Background {
   c3: string;
   angle: number;
   pattern: PatternKind;
-  patternOpacity: number;
+  patternOpacity: number; // 0..1
+  /* new */
   style: BgStyle;
   seed: number;
   light: Lighting;
-  meshPoints: number;
+  meshPoints: number; // 3..8
+  /* image background */
   kind?: BackgroundKind;
   image?: ImageBgState;
 }
@@ -158,10 +164,11 @@ export interface DeviceLayer {
   shadow: ShadowPreset;
   url: string;
   visible: boolean;
-  brightness: number;
-  reflection: number;
-  radiusMul: number;
-  opacity: number;
+  /* new */
+  brightness: number;   // 0.5..1.5
+  reflection: number;   // 0..1
+  radiusMul: number;    // 0.4..2
+  opacity: number;      // 0..1
   material: Material;
   z: number;
 }
@@ -192,7 +199,7 @@ export interface LogoState {
 export interface DecoLayer {
   id: string;
   preset: string;
-  x: number;
+  x: number;      // fractional 0..1 (center)
   y: number;
   scale: number;
   rotation: number;
@@ -207,7 +214,7 @@ export interface DecorationState {
   set: DecoSet;
   seed: number;
   intensity: number;
-  density: number;
+  density: number; // 0..1  (minimal..extreme)
   layers: DecoLayer[];
 }
 
@@ -235,16 +242,18 @@ export interface Project {
   accents: { a1: string; a2: string };
   thumbnail: string | null;
   exportCount: number;
+  /* new */
   decos: DecoLayer[];
   mood: Mood;
   icons: IconLayer[];
   textboxes: TextBox[];
 }
 
+/* ================= editor state ================= */
 export interface Selection {
   kind: 'device' | 'text' | 'logo' | 'background' | 'deco' | 'icon' | 'textbox';
   id?: string;
-  ids?: string[];
+  ids?: string[]; // Multi-select support
 }
 
 export interface Toast {
@@ -271,6 +280,8 @@ export interface DecoShape {
   rot: number;
 }
 
+/* A stored snapshot (favorite / history / variation). Assets are stripped and
+   merged back from the live project to keep storage light. */
 export interface DesignSnapshot {
   id: string;
   label: string;

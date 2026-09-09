@@ -1,6 +1,12 @@
 import type { DecoDepth, DecoLayer } from './types';
 import { DECO_PRESETS, mulberry32, rgba, shade } from './templates';
 
+/* =========================================================================
+   Decoration renderer. Draws DecoLayer instances (from DECO_PRESETS) to a
+   canvas. `depth` filters back vs front layers so devices can sit between
+   them — real depth ordering. Shared by preview and export.
+   ========================================================================= */
+
 export function drawDecos(
   ctx: CanvasRenderingContext2D,
   decos: DecoLayer[],
