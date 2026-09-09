@@ -3,6 +3,7 @@ import { useStudio } from '../store';
 import { renderBackground } from '../backgrounds';
 import { drawDecos } from '../decos';
 import { DeviceFrame } from './DeviceFrame';
+import { ContextMenu, type ContextMenuState } from './ContextMenu';
 import { DEVICE_META, computeFit, deviceGeometry } from '../templates';
 import type { Asset, DeviceLayer } from '../types';
 
@@ -22,6 +23,7 @@ export function StagePreview() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, ox: 0, oy: 0 });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const { w: cw, h: ch } = project.canvas;
 
@@ -46,20 +48,64 @@ export function StagePreview() {
 
   const onDeviceUp = useCallback(() => { if (dragging) { setDragging(null); } }, [dragging]);
 
+  const onContextMenu = useCallback((e: React.MouseEvent, target: ContextMenuState['target'], targetId?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (target === 'device' && targetId) {
+      setSelection({ kind: 'device', id: targetId });
+    } else if (target === 'text') {
+      setSelection({ kind: 'text' });
+    } else if (target === 'logo') {
+      setSelection({ kind: 'logo' });
+    } else if (target === 'background') {
+      setSelection({ kind: 'background' });
+    }
+    setContextMenu({ x: e.clientX, y: e.clientY, target, targetId });
+  }, [setSelection]);
+
   return (
-    <div ref={containerRef} className="flex-1 overflow-auto workspace-bg flex items-center justify-center" onPointerMove={onDeviceMove} onPointerUp={onDeviceUp}>
+    <div ref={containerRef} className="flex-1 overflow-auto workspace-bg flex items-center justify-center relative" onPointerMove={onDeviceMove} onPointerUp={onDeviceUp} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, target: 'canvas' }); }}>
       <div className="relative shadow-2xl" style={{ width: cw * zoom, height: ch * zoom }}>
         {/* Background canvas */}
-        <BackgroundCanvas project={project} zoom={zoom} />
+        <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, 'background'); }}>
+          <BackgroundCanvas project={project} zoom={zoom} />
+        </div>
         {/* Back decorations */}
         <DecoCanvas project={project} zoom={zoom} depth="back" />
         {/* Devices */}
         {[...project.devices].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(d => d.visible && (
-          <DevicePreview key={d.id} d={d} asset={project.assets.find(a => a.id === d.assetId)} accent={project.accents.a1} zoom={zoom} selected={selection?.id === d.id} onPointerDown={(e) => onDeviceDown(d.id, e)} />
+          <DevicePreview key={d.id} d={d} asset={project.assets.find(a => a.id === d.assetId)} accent={project.accents.a1} zoom={zoom} selected={selection?.id === d.id} onPointerDown={(e) => onDeviceDown(d.id, e)} onContextMenu={(e) => onContextMenu(e, 'device', d.id)} />
         ))}
         {/* Front decorations */}
         <DecoCanvas project={project} zoom={zoom} depth="front" />
+        {/* Text overlay for right-click */}
+        {project.text.enabled && (
+          <div
+            className="absolute pointer-events-auto cursor-pointer"
+            style={{
+              left: (project.text.position.includes('left') ? 0.05 : project.text.position.includes('right') ? 0.65 : 0.3) * project.canvas.w * zoom,
+              top: (project.text.position.startsWith('top') ? 0.05 : project.text.position.startsWith('bottom') ? 0.75 : 0.4) * project.canvas.h * zoom,
+              width: 0.3 * project.canvas.w * zoom,
+              height: 0.2 * project.canvas.h * zoom,
+            }}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, 'text'); }}
+          />
+        )}
+        {/* Logo overlay for right-click */}
+        {project.logo.enabled && (
+          <div
+            className="absolute pointer-events-auto cursor-pointer"
+            style={{
+              left: (project.logo.position.includes('left') ? 0.05 : 0.75) * project.canvas.w * zoom,
+              top: (project.logo.position.startsWith('top') ? 0.05 : 0.85) * project.canvas.h * zoom,
+              width: project.logo.size * project.canvas.w * zoom,
+              height: project.logo.size * project.canvas.w * zoom * 0.5,
+            }}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, 'logo'); }}
+          />
+        )}
       </div>
+      {contextMenu && <ContextMenu state={contextMenu} onClose={() => setContextMenu(null)} />}
     </div>
   );
 }
@@ -86,7 +132,7 @@ function DecoCanvas({ project, zoom, depth }: { project: any; zoom: number; dept
   return <canvas ref={ref} className="absolute inset-0 w-full h-full pointer-events-none" />;
 }
 
-function DevicePreview({ d, asset, accent, zoom, selected, onPointerDown }: { d: DeviceLayer; asset: Asset | undefined; accent: string; zoom: number; selected: boolean; onPointerDown: (e: React.PointerEvent) => void }) {
+function DevicePreview({ d, asset, accent, zoom, selected, onPointerDown, onContextMenu }: { d: DeviceLayer; asset: Asset | undefined; accent: string; zoom: number; selected: boolean; onPointerDown: (e: React.PointerEvent) => void; onContextMenu?: (e: React.MouseEvent) => void }) {
   const h = d.w / DEVICE_META[d.kind].aspect;
   const g = deviceGeometry(d.kind, d.w, h, d.radiusMul ?? 1);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -104,6 +150,7 @@ function DevicePreview({ d, asset, accent, zoom, selected, onPointerDown }: { d:
       className={`absolute cursor-move ${selected ? 'sel-ring' : ''}`}
       style={{ left: d.x * zoom, top: d.y * zoom, width: d.w * zoom, height: h * zoom, transform: `rotate(${d.tilt}deg)`, transformOrigin: 'center center', opacity: d.opacity }}
       onPointerDown={onPointerDown}
+      onContextMenu={onContextMenu}
     >
       <DeviceFrame kind={d.kind} color={d.color} w={d.w * zoom} h={h * zoom} part="back" url={d.url} radiusMul={d.radiusMul} material={d.material} reflection={d.reflection} />
       {/* Screen content */}

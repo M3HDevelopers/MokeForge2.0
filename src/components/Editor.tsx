@@ -6,6 +6,7 @@ import { RightPanel } from './RightPanel';
 import { StagePreview } from './StagePreview';
 import { ExportModal } from './ExportModal';
 import { GeneratePanel } from './GeneratePanel';
+import { QuickToolbar } from './QuickToolbar';
 import { clamp } from '../templates';
 import { IcArrowL, IcDice, IcDownload, IcExport, IcFit, IcRedo, IcSave, IcStar, IcUndo, IcUpload, IcWand, IcZoomIn, IcZoomOut, LogoMark } from '../icons';
 
@@ -52,6 +53,7 @@ export function Editor() {
       else if (mod && e.key.toLowerCase() === 'd') { if (selection?.kind === 'device' && selection.id) { e.preventDefault(); duplicateDevice(selection.id); } }
       else if ((e.key === 'Delete' || e.key === 'Backspace') && selection?.kind === 'device' && selection.id) { e.preventDefault(); removeDevice(selection.id); }
       else if (e.key === 'Escape') setSelection(null);
+      else if (e.key === 'F10' && e.shiftKey) { /* Context menu shortcut - handled by StagePreview */ }
       else if (e.key.startsWith('Arrow') && selection?.kind === 'device' && selection.id) { e.preventDefault(); const step = e.shiftKey ? 20 : 4; const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0; const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0; checkpoint(); update(p => ({ ...p, devices: p.devices.map(d => d.id === selection.id ? { ...d, x: d.x + dx, y: d.y + dy } : d) }), false); }
     };
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
@@ -104,6 +106,7 @@ export function Editor() {
       </div>
       <ExportModal />
       <GeneratePanel />
+      <QuickToolbar />
     </div>
   );
 }
