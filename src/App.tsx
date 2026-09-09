@@ -1,70 +1,43 @@
-import { useEffect } from 'react';
-import { useStudio } from './store';
-import { Dashboard } from './components/Dashboard';
-import { Editor } from './components/Editor';
-import { IcCheck, IcClose, IcSpark } from './icons';
-
-function Toasts() {
-  const toasts = useStudio(s => s.toasts);
-  const dismiss = useStudio(s => s.dismissToast);
-  const color = (t: 'ok' | 'err' | 'info') =>
-    t === 'ok' ? 'var(--color-acc2)' : t === 'err' ? 'var(--color-danger)' : 'var(--color-gold)';
-  return (
-    <div className="fixed bottom-5 right-5 z-[60] space-y-2 pointer-events-none">
-      {toasts.map(t => (
-        <div
-          key={t.id}
-          className="anim-toast pointer-events-auto flex items-center gap-2.5 pl-3 pr-2 py-2.5 rounded-lg border bg-panel2 shadow-[0_16px_44px_rgba(0,0,0,0.5)]"
-          style={{ borderColor: 'var(--color-line)' }}
-        >
-          <span style={{ color: color(t.tone) }}>
-            {t.tone === 'ok' ? <IcCheck size={14} /> : t.tone === 'err' ? <IcClose size={14} /> : <IcSpark size={14} />}
-          </span>
-          <span className="text-[12.5px] max-w-[300px]">{t.msg}</span>
-          <button className="icon-btn !w-6 !h-6 ml-1" onClick={() => dismiss(t.id)}><IcClose size={11} /></button>
-        </div>
-      ))}
-    </div>
-  );
-}
+import { useState } from 'react';
 
 export default function App() {
-  const booted = useStudio(s => s.booted);
-  const view = useStudio(s => s.view);
-  const project = useStudio(s => s.project);
-  const boot = useStudio(s => s.boot);
-
-  useEffect(() => { 
-    try {
-      boot(); 
-    } catch (error) {
-      console.error('Boot error:', error);
-    }
-  }, [boot]);
-  
-  if (!booted) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh',
-        backgroundColor: '#101114',
-        color: '#e9e7e1',
-        fontFamily: 'sans-serif'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: '32px', marginBottom: '10px', color: '#ff6b3d' }}>Loading MockForge...</h1>
-          <p style={{ fontSize: '16px', opacity: 0.7 }}>Please wait...</p>
-        </div>
-      </div>
-    );
-  }
+  const [count, setCount] = useState(0);
 
   return (
-    <div className="h-full bg-ink text-fg overflow-hidden">
-      {view === 'editor' && project ? <Editor /> : <Dashboard />}
-      <Toasts />
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      height: '100vh',
+      backgroundColor: '#101114',
+      color: '#e9e7e1',
+      fontFamily: 'sans-serif'
+    }}>
+      <h1 style={{ fontSize: '48px', marginBottom: '20px', color: '#ff6b3d' }}>
+        ✅ MockForge is Working!
+      </h1>
+      <p style={{ fontSize: '24px', marginBottom: '30px' }}>
+        React is rendering properly
+      </p>
+      <button 
+        onClick={() => setCount(count + 1)}
+        style={{
+          padding: '15px 30px',
+          fontSize: '18px',
+          backgroundColor: '#ff6b3d',
+          color: '#1a0e08',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontWeight: 'bold'
+        }}
+      >
+        Count: {count}
+      </button>
+      <p style={{ fontSize: '16px', marginTop: '20px', opacity: 0.7 }}>
+        If you can see this and click the button, React is working!
+      </p>
     </div>
   );
 }
