@@ -6,10 +6,7 @@ import { IcRefresh, IcLock, IcUnlock } from '../icons';
 export function ThemePanel() {
   const project = useStudio(s => s.project);
   const update = useStudio(s => s.update);
-  const setStoreThemeVariations = (variations: any) => {
-    // Store theme variations in local state only
-    console.log('Theme variations:', variations);
-  };
+  const setStoreThemeVariations = useStudio(s => s.setThemeVariations);
   const [extractedColors, setExtractedColors] = useState<ExtractedColor[]>([]);
   const [themeVariations, setThemeVariations] = useState<ThemeVariation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -84,6 +81,7 @@ export function ThemePanel() {
     setThemeVariations(newVariations);
     setStoreThemeVariations(newVariations);
 
+    // Apply the scrambled theme immediately
     applyTheme(newVariation);
   };
 
@@ -253,6 +251,7 @@ export function ThemePanel() {
                       </div>
                     </button>
                     
+                    {/* Scramble Colors Button */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -300,6 +299,7 @@ export function ThemePanel() {
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Drag Handle */}
         <div 
           className="px-4 py-2 border-b cursor-move select-none"
           style={{ 
@@ -325,6 +325,7 @@ export function ThemePanel() {
           </div>
         </div>
         
+        {/* Content */}
         <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(80vh - 40px)' }}>
           {content}
         </div>

@@ -1,9 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../store';
 import type { DeviceKind, Project } from '../types';
-import { applyLayoutPositions, CANVAS_PRESETS, DEVICE_META, makeDefaultProject, PROJECT_TYPES } from '../templates';
+import {
+  applyLayoutPositions, CANVAS_PRESETS, DEVICE_META, DECO_PRESETS, makeDefaultProject, PROJECT_TYPES,
+} from '../templates';
+import { COMPOSITIONS } from '../engine';
 import { makeThumbnail } from '../renderer';
-import { IcArrowR, IcCopy, IcFolder, IcPlus, IcSpin, IcStar, IcTrash, LogoMark } from '../icons';
+import { loadDemoAssets } from '../sampleScreens';
+import { DeviceFrame } from './DeviceFrame';
+import {
+  IcArrowR, IcCopy, IcFolder, IcPlus, IcSpin, IcStar, IcTrash, IcWand, LogoMark,
+} from '../icons';
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -37,18 +44,22 @@ export function Dashboard() {
   const loadDemo = async () => {
     setDemoLoading(true);
     try {
+      const assets = await loadDemoAssets();
       let p = makeDefaultProject('Aurora Analytics', 'Dashboard', 1600, 1000);
+      p = { ...p, assets };
       p = applyLayoutPositions(p, 'responsive');
       p = {
         ...p,
+        devices: p.devices.map((d, i) => ({ ...d, assetId: assets[i === 2 ? 1 : 0]?.id ?? null })),
         text: { ...p.text, enabled: true, title: 'Aurora Analytics', subtitle: 'MERN stack analytics platform', showBadges: true, badges: ['React', 'Node.js', 'MongoDB', 'Tailwind'] },
+        decoration: { ...p.decoration, set: 'orbs', seed: 42 },
         accents: { a1: '#ff6b3d', a2: '#45d6c8' },
       };
       try { p.thumbnail = await makeThumbnail(p); } catch { /* ok */ }
       importProject(p);
       const created = useStudio.getState().projects[0];
       openProject(created.id);
-      toast('Demo project ready');
+      toast('Demo project ready — press "Surprise me" for variations');
     } catch {
       toast('Could not build the demo project', 'err');
     }
@@ -56,7 +67,7 @@ export function Dashboard() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto noise-overlay">
       <header className="sticky top-0 z-20 flex items-center justify-between px-8 h-14 border-b border-line2 bg-ink/90" style={{ backdropFilter: 'blur(8px)' }}>
         <div className="flex items-center gap-2.5">
           <LogoMark size={24} />
@@ -97,6 +108,27 @@ export function Dashboard() {
               <div key={label} className="bg-panel px-5 py-4 stagger-item" style={{ animation: `fadeUp .45s ${0.08 + i * 0.05}s cubic-bezier(.2,.7,.3,1) both` }}>
                 <div className="text-[26px] font-bold leading-none" style={{ fontFamily: 'var(--font-disp)' }}>{n}</div>
                 <div className="label-mono mt-1.5">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 card card-hover px-5 py-4 flex flex-wrap items-center gap-x-8 gap-y-3" style={{ animation: 'fadeUp .5s .3s cubic-bezier(.2,.7,.3,1) both' }}>
+            <div className="flex items-center gap-2.5">
+              <span className="text-acc"><IcWand size={18} /></span>
+              <div>
+                <div className="text-[13.5px] font-semibold" style={{ fontFamily: 'var(--font-disp)' }}>Procedural Design Engine</div>
+                <div className="text-[10px]" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-dim)' }}>unlimited combinations · scored · constraint-aware</div>
+              </div>
+            </div>
+            {([
+              [`${COMPOSITIONS.length}+`, 'compositions'],
+              ['8', 'backdrop styles'],
+              [`${DECO_PRESETS.length}`, 'decor presets'],
+              ['13', 'design moods'],
+            ] as const).map(([n, l]) => (
+              <div key={l} className="flex items-baseline gap-2">
+                <span className="text-[17px] font-bold" style={{ fontFamily: 'var(--font-disp)', color: 'var(--color-acc2)' }}>{n}</span>
+                <span className="label-mono">{l}</span>
               </div>
             ))}
           </div>
@@ -208,6 +240,8 @@ function ProjectCard({ p, onOpen, onDelete, onDuplicate }: { p: Project; onOpen:
 
 function QuickCard({ kind, onClick }: { kind: DeviceKind; onClick: () => void }) {
   const meta = DEVICE_META[kind];
+  const w = Math.min(118, 78 * meta.aspect);
+  const h = w / meta.aspect;
   return (
     <button
       onClick={onClick}
@@ -217,7 +251,14 @@ function QuickCard({ kind, onClick }: { kind: DeviceKind; onClick: () => void })
         className="relative flex items-center justify-center w-full rounded-lg mb-3 overflow-hidden"
         style={{ height: 92, background: 'linear-gradient(135deg, #23262d, #191b20)' }}
       >
-        <div className="text-[13px] font-semibold text-white/80">{meta.label}</div>
+        <div className="relative" style={{ width: w, height: h }}>
+          <DeviceFrame kind={kind} color={meta.colors[0].hex} w={w} h={h} part="back" />
+          <div
+            className="absolute transition-opacity group-hover:opacity-90 opacity-60"
+            style={{ inset: 0, borderRadius: 6, background: 'linear-gradient(135deg, rgba(255,107,61,0.35), rgba(69,214,200,0.3))' }}
+          />
+          <DeviceFrame kind={kind} color={meta.colors[0].hex} w={w} h={h} part="front" />
+        </div>
       </div>
       <span className="text-[13px] font-semibold group-hover:text-acc transition-colors" style={{ fontFamily: 'var(--font-disp)' }}>{meta.label}</span>
       <span className="text-[9.5px]" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-dim)' }}>{meta.colors.length} frame colors</span>

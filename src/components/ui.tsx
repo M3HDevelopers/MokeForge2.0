@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { PosPreset } from '../types';
 import { POSITIONS } from '../templates';
 
+/* ---------------- section wrapper ---------------- */
 export function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
     <div className="px-3.5 py-3.5 border-b border-line2">
@@ -14,6 +15,7 @@ export function Section({ title, children, right }: { title: string; children: R
   );
 }
 
+/* ---------------- segmented control ---------------- */
 export function Seg<T extends string>({ options, value, onChange }: {
   options: { id: T; label: string }[]; value: T; onChange: (v: T) => void;
 }) {
@@ -28,6 +30,7 @@ export function Seg<T extends string>({ options, value, onChange }: {
   );
 }
 
+/* ---------------- slider row ---------------- */
 export function SliderRow({ label, value, min, max, step = 1, fmt, onStart, onChange }: {
   label: string; value: number; min: number; max: number; step?: number;
   fmt?: (v: number) => string;
@@ -52,6 +55,7 @@ export function SliderRow({ label, value, min, max, step = 1, fmt, onStart, onCh
   );
 }
 
+/* ---------------- toggle ---------------- */
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <button
@@ -72,6 +76,7 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
   );
 }
 
+/* ---------------- color input ---------------- */
 export function ColorInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -85,6 +90,7 @@ export function ColorInput({ value, onChange, label }: { value: string; onChange
   );
 }
 
+/* ---------------- position grid ---------------- */
 export function PosGrid({ value, onChange }: { value: PosPreset; onChange: (v: PosPreset) => void }) {
   return (
     <div className="grid grid-cols-3 gap-1">

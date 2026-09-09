@@ -132,6 +132,16 @@ function TextboxesTab() {
           </div>
         )}
       </Section>
+
+      <Section title="Tips">
+        <ul className="text-[9px] text-dim space-y-1">
+          <li>• Click text box on canvas to select</li>
+          <li>• Drag to move anywhere</li>
+          <li>• Edit properties in right panel</li>
+          <li>• Change font, size, color, background</li>
+          <li>• Add shadow or glow effects</li>
+        </ul>
+      </Section>
     </>
   );
 }
@@ -388,9 +398,15 @@ function BackdropTab() {
             </button>
           ))}
         </div>
+        <p className="text-[9px] leading-relaxed" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-dim)' }}>
+          auto = engine decides based on mood
+        </p>
       </Section>
 
       <Section title={`Procedural Backgrounds · ${presets.length}`}>
+        <p className="text-[10px] mb-2.5 leading-relaxed" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-dim)' }}>
+          tap to apply · tune colors in the right panel
+        </p>
         <div className="grid grid-cols-3 gap-1.5">
           {presets.map(bp => {
             const bg = { ...project.background, style: bp.style, type: bp.type, seed: bp.seed };
@@ -423,8 +439,9 @@ function DecorTab() {
   const project = useStudio(s => s.project)!;
   const update = useStudio(s => s.update);
   const checkpoint = useStudio(s => s.checkpoint);
+  const [role, setRole] = useState<string>('all');
 
-  const list = DECO_PRESETS;
+  const list = DECO_PRESETS.filter(d => role === 'all' || d.role === role);
   const add = (presetId: string) => {
     checkpoint();
     update(p => ({
@@ -443,11 +460,16 @@ function DecorTab() {
   return (
     <>
       <Section title={`Decorations · ${DECO_PRESETS.length}`}>
+        <div className="flex flex-wrap gap-1 mb-2.5">
+          {(['all', 'frame', 'depth', 'structure', 'texture', 'motion', 'tech', 'luxury', 'soft'] as const).map(r => (
+            <button key={r} onClick={() => setRole(r)} className={`chip capitalize !text-[10px] ${role === r ? 'on' : ''}`}>{r}</button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 gap-1.5 max-h-[400px] overflow-y-auto">
           {list.map(d => (
             <button key={d.id} onClick={() => add(d.id)} className="p-2 rounded-lg border border-line bg-panel hover:border-acc/50 hover:bg-panel2 transition-all text-left group">
               <div className="text-[11px] font-medium group-hover:text-acc transition-colors">{d.label}</div>
-              <div className="text-[9px]" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-dim)' }}>{d.cat}</div>
+              <div className="text-[9px]" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-dim)' }}>{d.role}</div>
             </button>
           ))}
         </div>
@@ -467,9 +489,11 @@ function ImagesTab() {
   const checkpoint = useStudio(s => s.checkpoint);
   const [cat, setCat] = useState<string>('all');
   const [q, setQ] = useState('');
+  const [customImages, setCustomImages] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = useMemo(() => {
-    let imgs = [...IMAGE_ASSETS];
+    let imgs = [...IMAGE_ASSETS, ...customImages];
     if (cat !== 'all') {
       imgs = imgs.filter((i) => i.category === cat);
     }
@@ -477,23 +501,24 @@ function ImagesTab() {
       imgs = searchImages(q, cat as any);
     }
     return imgs;
-  }, [cat, q]);
+  }, [cat, q, customImages]);
 
   const applyImage = (imageId: string) => {
     checkpoint();
     const img = list.find((i: any) => i.id === imageId);
+    // When applying image background, clear existing decorations and icons to avoid duplicates
     update(p => ({
       ...p,
-      decos: [],
-      icons: [],
+      decos: [], // Clear decorations
+      icons: [], // Clear icons
       background: {
         ...p.background,
         kind: 'image',
-        style: 'plain',
+        style: 'plain', // Reset to plain style for image backgrounds
         image: {
           kind: 'image',
           imageId,
-          customSrc: img?.src || null,
+          customSrc: img?.customSrc || null,
           fit: 'cover',
           x: 0,
           y: 0,
@@ -518,15 +543,59 @@ function ImagesTab() {
     }));
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        const newImage = {
+          id: `custom-${Date.now()}-${Math.random()}`,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          category: 'custom' as const,
+          tags: ['custom', 'uploaded'],
+          src: dataUrl,
+          customSrc: dataUrl,
+          width: 2048,
+          height: 2048,
+          dark: false,
+          busy: false,
+          mood: ['custom'],
+        };
+        setCustomImages(prev => [...prev, newImage]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = '';
+  };
+
   return (
     <>
       <Section title={`Image Backgrounds · ${list.length}`}>
+        <button
+          className="btn btn-ghost w-full justify-center !text-[11px] mb-2"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <IcUpload size={12} /> Upload Custom Image
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageUpload}
+          style={{ display: 'none' }}
+        />
+
         <div className="relative mb-2">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim"><IcSearch size={12} /></span>
           <input className="input !pl-7 !py-1.5 !text-[11.5px]" placeholder="Search images…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="flex flex-wrap gap-1 mb-2.5">
-          {['all', 'abstract', '3d', 'studio', 'architectural', 'glass', 'paper', 'tech', 'editorial'].map(c => (
+          {['all', 'abstract', '3d', 'studio', 'architectural', 'glass', 'paper', 'tech', 'editorial', 'custom'].map(c => (
             <button key={c} onClick={() => setCat(c)} className={`chip capitalize !text-[10px] ${cat === c ? 'on' : ''}`}>{c}</button>
           ))}
         </div>
@@ -555,11 +624,17 @@ function IconsTab() {
   const project = useStudio(s => s.project)!;
   const update = useStudio(s => s.update);
   const checkpoint = useStudio(s => s.checkpoint);
+  const addTechStackIcons = useStudio(s => s.addTechStackIcons);
+  const autoClusterIcons = useStudio(s => s.autoClusterIcons);
   const [cat, setCat] = useState<string>('all');
   const [q, setQ] = useState('');
+  const [customIcons, setCustomIcons] = useState<any[]>([]);
+  const [showTechStack, setShowTechStack] = useState(false);
+  const [placementMode, setPlacementMode] = useState<'random' | 'around-device' | 'orbit'>('random');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = useMemo(() => {
-    let icons = [...ICONS];
+    let icons = [...ICONS, ...customIcons];
     if (cat !== 'all') {
       icons = icons.filter((i) => i.category === cat);
     }
@@ -567,21 +642,40 @@ function IconsTab() {
       icons = searchIcons(q, cat);
     }
     return icons;
-  }, [cat, q]);
+  }, [cat, q, customIcons]);
 
   const addIcon = (iconId: string) => {
     checkpoint();
     const icon = list.find((i: any) => i.id === iconId);
     
+    // Calculate position based on placement mode
     let x = 0.5, y = 0.5;
-    x = 0.2 + Math.random() * 0.6;
-    y = 0.2 + Math.random() * 0.6;
+    if (placementMode === 'around-device' && project.devices.length > 0) {
+      const device = project.devices[0];
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 0.25 + Math.random() * 0.15;
+      x = (device.x + device.w / 2) / project.canvas.w + Math.cos(angle) * distance;
+      y = (device.y + device.w / DEVICE_META[device.kind].aspect / 2) / project.canvas.h + Math.sin(angle) * distance;
+    } else if (placementMode === 'orbit' && project.devices.length > 0) {
+      const device = project.devices[0];
+      const iconIndex = project.icons.length;
+      const totalIcons = iconIndex + 1;
+      const angle = (iconIndex / totalIcons) * Math.PI * 2;
+      const distance = 0.3;
+      x = (device.x + device.w / 2) / project.canvas.w + Math.cos(angle) * distance;
+      y = (device.y + device.w / DEVICE_META[device.kind].aspect / 2) / project.canvas.h + Math.sin(angle) * distance;
+    } else {
+      // Random placement
+      x = 0.2 + Math.random() * 0.6;
+      y = 0.2 + Math.random() * 0.6;
+    }
     
     update(p => ({
       ...p,
       icons: [...p.icons, {
         id: uid(),
         iconId,
+        iconPath: icon?.d || icon?.pathData || '',
         x,
         y,
         size: 0.08,
@@ -596,15 +690,123 @@ function IconsTab() {
     }));
   };
 
+  const handleSvgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const svgText = event.target?.result as string;
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+        const svgElement = svgDoc.querySelector('svg');
+        
+        if (svgElement) {
+          const pathElement = svgElement.querySelector('path');
+          const pathData = pathElement?.getAttribute('d') || '';
+          
+          if (pathData) {
+            const newIcon = {
+              id: `custom-icon-${Date.now()}-${Math.random()}`,
+              name: file.name.replace(/\.[^/.]+$/, ''),
+              category: 'custom',
+              tags: ['custom', 'uploaded'],
+              d: pathData,
+              pathData: pathData,
+              style: 'outline',
+            };
+            setCustomIcons(prev => [...prev, newIcon]);
+          }
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    e.target.value = '';
+  };
+
   return (
     <>
       <Section title={`Icon Library · ${list.length}`}>
+        <button
+          className="btn btn-ghost w-full justify-center !text-[11px] mb-2"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <IcUpload size={12} /> Upload Custom SVG Icon
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".svg"
+          multiple
+          onChange={handleSvgUpload}
+          style={{ display: 'none' }}
+        />
+
+        {/* Tech Stack Visualizer */}
+        <button
+          className="btn w-full justify-center !text-[11px] mb-2"
+          onClick={() => setShowTechStack(!showTechStack)}
+        >
+          <IcSpark size={12} /> Tech Stack Visualizer
+        </button>
+        
+        {showTechStack && (
+          <div className="mb-2 p-2 rounded-lg border border-line bg-panel">
+            <div className="text-[10px] text-dim mb-1">Select tech stack:</div>
+            <div className="flex flex-wrap gap-1">
+              {['React', 'Node.js', 'MongoDB', 'TypeScript', 'Tailwind', 'Next.js', 'Vue', 'Angular', 'Firebase', 'Supabase'].map(tech => (
+                <button
+                  key={tech}
+                  className="chip !text-[9px]"
+                  onClick={() => {
+                    addTechStackIcons([tech]);
+                    setShowTechStack(false);
+                  }}
+                >
+                  {tech}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Auto-Cluster Icons */}
+        {project.icons.length >= 3 && (
+          <button
+            className="btn btn-ghost w-full justify-center !text-[11px] mb-2"
+            onClick={() => {
+              checkpoint();
+              autoClusterIcons();
+            }}
+          >
+            <IcGrid size={12} /> Auto-Cluster Icons
+          </button>
+        )}
+
+        {/* Placement Mode */}
+        <div className="mb-2">
+          <div className="label-mono mb-1">Placement Mode</div>
+          <div className="flex gap-1">
+            {(['random', 'around-device', 'orbit'] as const).map(mode => (
+              <button
+                key={mode}
+                className={`chip flex-1 justify-center !text-[9px] ${placementMode === mode ? 'on' : ''}`}
+                onClick={() => setPlacementMode(mode)}
+              >
+                {mode === 'random' ? 'Random' : mode === 'around-device' ? 'Around' : 'Orbit'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="relative mb-2">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim"><IcSearch size={12} /></span>
           <input className="input !pl-7 !py-1.5 !text-[11.5px]" placeholder="Search icons…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="flex flex-wrap gap-1 mb-2.5">
-          {['all', 'web', 'dev', 'mobile', 'business', 'misc'].map(c => (
+          {['all', 'web', 'dev', 'mobile', 'ai', 'cloud', 'design', 'ecom', 'business', 'ui', 'misc', 'custom'].map(c => (
             <button key={c} onClick={() => setCat(c)} className={`chip capitalize !text-[10px] ${cat === c ? 'on' : ''}`}>{c}</button>
           ))}
         </div>
@@ -612,7 +814,7 @@ function IconsTab() {
           {list.map((icon: any) => (
             <button key={icon.id} onClick={() => addIcon(icon.id)} className="group p-2 rounded-lg border border-line hover:border-acc/50 hover:bg-panel2 transition-all flex flex-col items-center gap-1">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-mut group-hover:text-acc transition-colors">
-                <path d={icon.d} />
+                <path d={icon.d || icon.pathData} />
               </svg>
               <div className="text-[8px] text-center truncate w-full" style={{ color: 'var(--color-dim)' }}>{icon.name}</div>
             </button>

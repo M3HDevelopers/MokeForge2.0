@@ -30,25 +30,29 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
   const [guides, setGuides] = useState<DistanceGuide[]>([]);
 
   useEffect(() => {
+    // Only show guides when dragging
     if (!isDragging || !selectedObject) {
       setGuides([]);
       return;
     }
 
     const allGuides: DistanceGuide[] = [];
-    const maxDistance = 300;
-    const maxGuidesPerSide = 2;
+    const maxDistance = 300; // Maximum distance to show guides
+    const maxGuidesPerSide = 2; // Only show closest 2 guides per side
 
+    // Calculate distances from canvas edges
     const leftDist = selectedObject.x;
     const rightDist = canvasWidth - (selectedObject.x + selectedObject.width);
     const topDist = selectedObject.y;
     const bottomDist = canvasHeight - (selectedObject.y + selectedObject.height);
 
+    // Collect all possible guides with their distances
     const leftGuides: DistanceGuide[] = [];
     const rightGuides: DistanceGuide[] = [];
     const topGuides: DistanceGuide[] = [];
     const bottomGuides: DistanceGuide[] = [];
 
+    // Left edge guides
     if (leftDist > 0 && leftDist <= maxDistance) {
       const steps = Math.floor(leftDist / 20);
       for (let i = 1; i <= steps; i++) {
@@ -62,6 +66,7 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
       }
     }
 
+    // Right edge guides
     if (rightDist > 0 && rightDist <= maxDistance) {
       const steps = Math.floor(rightDist / 20);
       for (let i = 1; i <= steps; i++) {
@@ -75,6 +80,7 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
       }
     }
 
+    // Top edge guides
     if (topDist > 0 && topDist <= maxDistance) {
       const steps = Math.floor(topDist / 20);
       for (let i = 1; i <= steps; i++) {
@@ -88,6 +94,7 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
       }
     }
 
+    // Bottom edge guides
     if (bottomDist > 0 && bottomDist <= maxDistance) {
       const steps = Math.floor(bottomDist / 20);
       for (let i = 1; i <= steps; i++) {
@@ -101,6 +108,189 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
       }
     }
 
+    // Check if selected object overlaps with any other object
+    const overlappingObjects = otherObjects.filter(obj => {
+      const overlapX = selectedObject.x < obj.x + obj.width && selectedObject.x + selectedObject.width > obj.x;
+      const overlapY = selectedObject.y < obj.y + obj.height && selectedObject.y + selectedObject.height > obj.y;
+      return overlapX && overlapY;
+    });
+
+    // Object-to-object guides
+    otherObjects.forEach(obj => {
+      const hDist1 = Math.abs(selectedObject.x - (obj.x + obj.width));
+      const hDist2 = Math.abs((selectedObject.x + selectedObject.width) - obj.x);
+      const vDist1 = Math.abs(selectedObject.y - (obj.y + obj.height));
+      const vDist2 = Math.abs((selectedObject.y + selectedObject.height) - obj.y);
+
+      // If overlapping, show internal guides relative to the overlapping object
+      const isOverlapping = overlappingObjects.includes(obj);
+      const guideLimit = isOverlapping ? 4 : maxGuidesPerSide; // More guides when overlapping
+
+      // Left side object guides
+      if (hDist1 > 0 && hDist1 <= maxDistance) {
+        const steps = Math.floor(hDist1 / 20);
+        for (let i = 1; i <= Math.min(steps, guideLimit); i++) {
+          const d = i * 20;
+          const pos = selectedObject.x - d;
+          if (pos >= 0 && pos <= canvasWidth) {
+            leftGuides.push({
+              type: 'vertical',
+              position: pos,
+              distance: d,
+              label: `${d}px`
+            });
+          }
+        }
+      }
+
+      // If overlapping, also show guides from the overlapping object's edges
+      if (isOverlapping) {
+        // Distance from selected object's left edge to overlapping object's left edge
+        const leftToLeft = Math.abs(selectedObject.x - obj.x);
+        if (leftToLeft > 0 && leftToLeft <= maxDistance) {
+          leftGuides.push({
+            type: 'vertical',
+            position: obj.x,
+            distance: leftToLeft,
+            label: `${Math.round(leftToLeft)}px`
+          });
+        }
+
+        // Distance from selected object's right edge to overlapping object's right edge
+        const rightToRight = Math.abs((selectedObject.x + selectedObject.width) - (obj.x + obj.width));
+        if (rightToRight > 0 && rightToRight <= maxDistance) {
+          rightGuides.push({
+            type: 'vertical',
+            position: obj.x + obj.width,
+            distance: rightToRight,
+            label: `${Math.round(rightToRight)}px`
+          });
+        }
+
+        // Distance from selected object's top edge to overlapping object's top edge
+        const topToTop = Math.abs(selectedObject.y - obj.y);
+        if (topToTop > 0 && topToTop <= maxDistance) {
+          topGuides.push({
+            type: 'horizontal',
+            position: obj.y,
+            distance: topToTop,
+            label: `${Math.round(topToTop)}px`
+          });
+        }
+
+        // Distance from selected object's bottom edge to overlapping object's bottom edge
+        const bottomToBottom = Math.abs((selectedObject.y + selectedObject.height) - (obj.y + obj.height));
+        if (bottomToBottom > 0 && bottomToBottom <= maxDistance) {
+          bottomGuides.push({
+            type: 'horizontal',
+            position: obj.y + obj.height,
+            distance: bottomToBottom,
+            label: `${Math.round(bottomToBottom)}px`
+          });
+        }
+
+        // Center alignment with overlapping object
+        const selectedCenterX = selectedObject.x + selectedObject.width / 2;
+        const objCenterX = obj.x + obj.width / 2;
+        const selectedCenterY = selectedObject.y + selectedObject.height / 2;
+        const objCenterY = obj.y + obj.height / 2;
+
+        if (Math.abs(selectedCenterX - objCenterX) < 5) {
+          allGuides.push({
+            type: 'vertical',
+            position: objCenterX,
+            distance: 0,
+            label: 'center'
+          });
+        }
+
+        if (Math.abs(selectedCenterY - objCenterY) < 5) {
+          allGuides.push({
+            type: 'horizontal',
+            position: objCenterY,
+            distance: 0,
+            label: 'center'
+          });
+        }
+      }
+
+      // Right side object guides
+      if (hDist2 > 0 && hDist2 <= maxDistance) {
+        const steps = Math.floor(hDist2 / 20);
+        for (let i = 1; i <= steps; i++) {
+          const d = i * 20;
+          const pos = selectedObject.x + selectedObject.width + d;
+          if (pos >= 0 && pos <= canvasWidth) {
+            rightGuides.push({
+              type: 'vertical',
+              position: pos,
+              distance: d,
+              label: `${d}px`
+            });
+          }
+        }
+      }
+
+      // Top side object guides
+      if (vDist1 > 0 && vDist1 <= maxDistance) {
+        const steps = Math.floor(vDist1 / 20);
+        for (let i = 1; i <= steps; i++) {
+          const d = i * 20;
+          const pos = selectedObject.y - d;
+          if (pos >= 0 && pos <= canvasHeight) {
+            topGuides.push({
+              type: 'horizontal',
+              position: pos,
+              distance: d,
+              label: `${d}px`
+            });
+          }
+        }
+      }
+
+      // Bottom side object guides
+      if (vDist2 > 0 && vDist2 <= maxDistance) {
+        const steps = Math.floor(vDist2 / 20);
+        for (let i = 1; i <= steps; i++) {
+          const d = i * 20;
+          const pos = selectedObject.y + selectedObject.height + d;
+          if (pos >= 0 && pos <= canvasHeight) {
+            bottomGuides.push({
+              type: 'horizontal',
+              position: pos,
+              distance: d,
+              label: `${d}px`
+            });
+          }
+        }
+      }
+
+      // Center alignment guides
+      const selectedCenterX = selectedObject.x + selectedObject.width / 2;
+      const objCenterX = obj.x + obj.width / 2;
+      const selectedCenterY = selectedObject.y + selectedObject.height / 2;
+      const objCenterY = obj.y + obj.height / 2;
+
+      if (Math.abs(selectedCenterX - objCenterX) < 5) {
+        allGuides.push({
+          type: 'vertical',
+          position: objCenterX,
+          distance: 0,
+          label: 'center'
+        });
+      }
+
+      if (Math.abs(selectedCenterY - objCenterY) < 5) {
+        allGuides.push({
+          type: 'horizontal',
+          position: objCenterY,
+          distance: 0,
+          label: 'center'
+        });
+      }
+    });
+
+    // Canvas center guides
     const canvasCenterX = canvasWidth / 2;
     const canvasCenterY = canvasHeight / 2;
     const selectedCenterX = selectedObject.x + selectedObject.width / 2;
@@ -124,11 +314,13 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
       });
     }
 
+    // Sort guides by distance and take only closest maxGuidesPerSide
     leftGuides.sort((a, b) => a.distance - b.distance);
     rightGuides.sort((a, b) => a.distance - b.distance);
     topGuides.sort((a, b) => a.distance - b.distance);
     bottomGuides.sort((a, b) => a.distance - b.distance);
 
+    // Add only closest guides
     allGuides.push(...leftGuides.slice(0, maxGuidesPerSide));
     allGuides.push(...rightGuides.slice(0, maxGuidesPerSide));
     allGuides.push(...topGuides.slice(0, maxGuidesPerSide));
@@ -139,6 +331,7 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
 
   if (guides.length === 0) return null;
 
+  // Stagger labels to prevent overlap
   const verticalLabelPositions: number[] = [];
   const horizontalLabelPositions: number[] = [];
 
@@ -146,6 +339,7 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 9999 }}>
       {guides.map((guide, idx) => {
         if (guide.type === 'vertical') {
+          // Find a non-overlapping position for this label
           let labelTop = 8;
           for (const existingPos of verticalLabelPositions) {
             if (Math.abs(existingPos - labelTop) < 20) {
@@ -182,6 +376,7 @@ export function AdvancedGrid({ canvasWidth, canvasHeight, zoom, isDragging, sele
             </div>
           );
         } else {
+          // Find a non-overlapping position for this label
           let labelLeft = 8;
           for (const existingPos of horizontalLabelPositions) {
             if (Math.abs(existingPos - labelLeft) < 50) {

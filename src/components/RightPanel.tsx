@@ -102,10 +102,50 @@ function DeviceProps({ d }: { d: DeviceLayer }) {
               <Seg options={FIT_MODES} value={d.fit} onChange={(v) => { checkpoint(); patch(x => ({ ...x, fit: v })); }} />
             </div>
             
+            <div className="mt-3 flex gap-1.5">
+              <button 
+                className="btn flex-1 !text-[10px] !py-1.5 justify-center"
+                onClick={() => { 
+                  checkpoint(); 
+                  // Auto-fit: calculate best fit mode based on aspect ratios
+                  const asset = project.assets.find(a => a.id === d.assetId);
+                  if (asset) {
+                    const screenAspect = (d.w / DEVICE_META[d.kind].aspect) / d.w;
+                    const imageAspect = asset.w / asset.h;
+                    const suggestedFit = suggestFitMode(screenAspect, imageAspect);
+                    patch(x => ({ ...x, zoom: 1, panX: 0, panY: 0, fit: suggestedFit }));
+                  } else {
+                    patch(x => ({ ...x, zoom: 1, panX: 0, panY: 0, fit: 'cover' }));
+                  }
+                }}
+              >
+                Auto-fit
+              </button>
+              <button 
+                className="btn flex-1 !text-[10px] !py-1.5 justify-center"
+                onClick={() => { 
+                  checkpoint(); 
+                  patch(x => ({ ...x, zoom: 1, panX: 0, panY: 0 })); 
+                }}
+              >
+                Reset
+              </button>
+            </div>
+
             <div className="mt-3">
               <SliderRow label="Zoom" value={d.zoom} min={0.5} max={3} step={0.01} fmt={v => `${Math.round(v * 100)}%`} onStart={checkpoint} onChange={v => patch(x => ({ ...x, zoom: v }))} />
               <SliderRow label="Position X" value={d.panX} min={-1} max={1} step={0.01} fmt={v => `${Math.round(v * 100)}%`} onStart={checkpoint} onChange={v => patch(x => ({ ...x, panX: v }))} />
               <SliderRow label="Position Y" value={d.panY} min={-1} max={1} step={0.01} fmt={v => `${Math.round(v * 100)}%`} onStart={checkpoint} onChange={v => patch(x => ({ ...x, panY: v }))} />
+            </div>
+
+            <div className="mt-2 p-2 rounded-lg border border-line bg-panel">
+              <div className="text-[9px] text-dim mb-1">Quick tips:</div>
+              <ul className="text-[9px] text-mut space-y-0.5">
+                <li>• Use "Auto-fit" for perfect fit</li>
+                <li>• Zoom in/out to adjust size</li>
+                <li>• Pan to reposition screenshot</li>
+                <li>• "Cover" mode fills entire frame</li>
+              </ul>
             </div>
           </>
         )}
@@ -197,6 +237,18 @@ function BackgroundProps() {
   const patch = (fn: (x: typeof b) => typeof b) => update(p => ({ ...p, background: fn(p.background) }), false);
   const dpatch = (fn: (x: typeof project.decoration) => typeof project.decoration) => update(p => ({ ...p, decoration: fn(p.decoration) }), false);
 
+  // When background style changes, clear existing decorations and icons to avoid duplicates
+  const changeBgStyle = (style: BgStyle) => {
+    checkpoint();
+    update(p => ({
+      ...p,
+      background: { ...p.background, style },
+      // Clear decorations and icons when switching background style
+      decos: [],
+      icons: [],
+    }), false);
+  };
+
   return (
     <>
       <Section title="Backdrop style">
@@ -204,7 +256,7 @@ function BackgroundProps() {
           {BG_STYLE_OPTS.map(s => (
             <button
               key={s.id}
-              onClick={() => { checkpoint(); patch(x => ({ ...x, style: s.id })); }}
+              onClick={() => changeBgStyle(s.id)}
               className="py-1.5 text-[9.5px] rounded-md border cursor-pointer transition-all"
               style={{
                 fontFamily: 'var(--font-mono)',
@@ -229,7 +281,12 @@ function BackgroundProps() {
         <Seg
           options={[{ id: 'solid', label: 'Solid' }, { id: 'linear', label: 'Linear' }, { id: 'radial', label: 'Radial' }, { id: 'mesh', label: 'Mesh' }] as { id: typeof b.type; label: string }[]}
           value={b.type}
-          onChange={(v) => { checkpoint(); patch(x => ({ ...x, type: v })); }}
+          onChange={(v) => { 
+            checkpoint(); 
+            // When changing background type, switch to procedural mode and clear decorations/icons
+            patch(x => ({ ...x, type: v, kind: 'procedural' }));
+            update(p => ({ ...p, decos: [], icons: [] }), false);
+          }}
         />
         <div className="flex items-center gap-3 mt-3">
           <ColorInput value={b.c1} onChange={(v) => { checkpoint(); patch(x => ({ ...x, c1: v })); }} label="base" />
@@ -243,7 +300,11 @@ function BackgroundProps() {
           {PATTERNS.map(pt => (
             <button
               key={pt.id}
-              onClick={() => { checkpoint(); patch(x => ({ ...x, pattern: pt.id as PatternKind })); }}
+              onClick={() => { 
+                checkpoint(); 
+                // When changing pattern, switch to procedural mode
+                patch(x => ({ ...x, pattern: pt.id as PatternKind, kind: 'procedural' }));
+              }}
               className="py-1.5 text-[9.5px] rounded-md border cursor-pointer transition-all"
               style={{
                 fontFamily: 'var(--font-mono)',
@@ -267,7 +328,11 @@ function BackgroundProps() {
           {DECO_SETS.map(ds => (
             <button
               key={ds.id}
-              onClick={() => { checkpoint(); dpatch(x => ({ ...x, set: ds.id })); }}
+              onClick={() => { 
+                checkpoint(); 
+                // When changing decorative shapes, clear existing decorations to avoid duplicates
+                update(p => ({ ...p, decos: [], decoration: { ...p.decoration, set: ds.id } }), false);
+              }}
               className="py-1.5 text-[9.5px] rounded-md border cursor-pointer transition-all"
               style={{
                 fontFamily: 'var(--font-mono)',
@@ -283,8 +348,8 @@ function BackgroundProps() {
         <SliderRow label="Intensity" value={Math.round(project.decoration.intensity * 100)} min={40} max={150} fmt={v => `${v}%`}
           onStart={checkpoint} onChange={v => dpatch(x => ({ ...x, intensity: v / 100 }))} />
         <div className="flex items-center gap-3 mt-3">
-          <ColorInput value={project.accents.a1} onChange={(v) => { checkpoint(); update(p => ({ ...p, accents: { ...p.accents, a1: v } })); }} label="accent" />
-          <ColorInput value={project.accents.a2} onChange={(v) => { checkpoint(); update(p => ({ ...p, accents: { ...p.accents, a2: v } })); }} label="accent 2" />
+          <ColorInput value={project.accents.a1} onChange={(v) => { checkpoint(); update(p => ({ ...p, accents: { ...p.accents, a1: v } })); }} />
+          <ColorInput value={project.accents.a2} onChange={(v) => { checkpoint(); update(p => ({ ...p, accents: { ...p.accents, a2: v } })); }} />
         </div>
       </Section>
 
@@ -324,6 +389,7 @@ function TextProps() {
   const checkpoint = useStudio(s => s.checkpoint);
   const t = project.text;
   
+  // Safety check - prevent crash if text is undefined
   if (!t) return null;
   
   const patch = (fn: (x: typeof t) => typeof t) => update(p => ({ ...p, text: fn(p.text) }), false);
@@ -339,6 +405,47 @@ function TextProps() {
               onClick={() => { checkpoint(); patch(x => ({ ...x, scale: tp.scale, position: tp.pos })); }}
             >
               {tp.label}
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Font family">
+        <div className="grid grid-cols-3 gap-1.5 max-h-[300px] overflow-y-auto">
+          {[
+            { id: 'space-grotesk', label: 'Space Grotesk', font: '"Space Grotesk", sans-serif' },
+            { id: 'ibm-plex', label: 'IBM Plex', font: '"IBM Plex Sans", sans-serif' },
+            { id: 'system', label: 'System', font: 'system-ui, sans-serif' },
+            { id: 'mono', label: 'Mono', font: '"JetBrains Mono", monospace' },
+            { id: 'serif', label: 'Serif', font: 'Georgia, serif' },
+            { id: 'rounded', label: 'Rounded', font: '"Nunito", sans-serif' },
+            { id: 'playfair', label: 'Playfair', font: '"Playfair Display", serif' },
+            { id: 'roboto', label: 'Roboto', font: '"Roboto", sans-serif' },
+            { id: 'open-sans', label: 'Open Sans', font: '"Open Sans", sans-serif' },
+            { id: 'lato', label: 'Lato', font: '"Lato", sans-serif' },
+            { id: 'montserrat', label: 'Montserrat', font: '"Montserrat", sans-serif' },
+            { id: 'poppins', label: 'Poppins', font: '"Poppins", sans-serif' },
+            { id: 'raleway', label: 'Raleway', font: '"Raleway", sans-serif' },
+            { id: 'oswald', label: 'Oswald', font: '"Oswald", sans-serif' },
+            { id: 'merriweather', label: 'Merriweather', font: '"Merriweather", serif' },
+            { id: 'source-code', label: 'Source Code', font: '"Source Code Pro", monospace' },
+            { id: 'fira-code', label: 'Fira Code', font: '"Fira Code", monospace' },
+            { id: 'inter', label: 'Inter', font: '"Inter", sans-serif' },
+            { id: 'work-sans', label: 'Work Sans', font: '"Work Sans", sans-serif' },
+            { id: 'nunito-sans', label: 'Nunito Sans', font: '"Nunito Sans", sans-serif' },
+          ].map(f => (
+            <button
+              key={f.id}
+              className="py-2 px-2 rounded-md border text-[10px] transition-all"
+              style={{
+                fontFamily: f.font,
+                borderColor: (t.fontFamily || 'space-grotesk') === f.id ? 'var(--color-acc)' : 'var(--color-line)',
+                background: (t.fontFamily || 'space-grotesk') === f.id ? 'rgba(255,107,61,0.12)' : 'var(--color-panel)',
+                color: (t.fontFamily || 'space-grotesk') === f.id ? 'var(--color-acc)' : 'var(--color-mut)',
+              }}
+              onClick={() => { checkpoint(); patch(x => ({ ...x, fontFamily: f.id })); }}
+            >
+              {f.label}
             </button>
           ))}
         </div>
@@ -456,6 +563,32 @@ function DecoProps({ d }: { d: any }) {
         <SliderRow label="Rotation" value={d.rotation} min={-180} max={180} fmt={v => `${v}°`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, rotation: v }))} />
         <SliderRow label="Opacity" value={Math.round(d.opacity * 100)} min={10} max={100} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, opacity: v / 100 }))} />
       </Section>
+
+      <Section title="Effects">
+        <SliderRow label="Blur" value={d.blur || 0} min={0} max={20} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, blur: v }))} />
+        <Toggle on={d.shadow || false} onChange={(v) => { checkpoint(); patch((x: any) => ({ ...x, shadow: v })); }} label="Shadow" />
+        <Toggle on={d.glow || false} onChange={(v) => { checkpoint(); patch((x: any) => ({ ...x, glow: v })); }} label="Glow" />
+        {d.glow && (
+          <ColorInput value={d.hue || '#ffffff'} onChange={(v) => { checkpoint(); patch((x: any) => ({ ...x, hue: v })); }} label="glow color" />
+        )}
+      </Section>
+
+      <Section title="Depth">
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            className={`py-2 text-[10px] rounded-md border cursor-pointer transition-all ${d.depth === 'back' ? 'border-acc bg-acc/10 text-acc' : 'border-line bg-panel text-mut'}`}
+            onClick={() => { checkpoint(); patch((x: any) => ({ ...x, depth: 'back' })); }}
+          >
+            Behind devices
+          </button>
+          <button
+            className={`py-2 text-[10px] rounded-md border cursor-pointer transition-all ${d.depth === 'front' ? 'border-acc bg-acc/10 text-acc' : 'border-line bg-panel text-mut'}`}
+            onClick={() => { checkpoint(); patch((x: any) => ({ ...x, depth: 'front' })); }}
+          >
+            In front
+          </button>
+        </div>
+      </Section>
     </>
   );
 }
@@ -467,6 +600,12 @@ function TextBoxProps({ t }: { t: any }) {
   const removeTextBox = useStudio(s => s.removeTextBox);
   const patch = (fn: (x: any) => any) =>
     update(p => ({ ...p, textboxes: p.textboxes.map(x => x.id === t.id ? fn(x) : x) }), false);
+
+  const fontFamilies = [
+    'Space Grotesk', 'IBM Plex Sans', 'Inter', 'Roboto', 'Open Sans', 
+    'Montserrat', 'Poppins', 'Raleway', 'Oswald', 'Merriweather',
+    'Source Code Pro', 'Fira Code', 'JetBrains Mono'
+  ];
 
   return (
     <>
@@ -486,8 +625,34 @@ function TextBoxProps({ t }: { t: any }) {
 
       <Section title="Typography">
         <div className="space-y-2">
+          <div>
+            <div className="label-mono mb-1">Font Family</div>
+            <select
+              className="input !text-[11px]"
+              value={t.fontFamily}
+              onChange={(e) => patch((x: any) => ({ ...x, fontFamily: e.target.value }))}
+            >
+              {fontFamilies.map(f => (
+                <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+              ))}
+            </select>
+          </div>
           <SliderRow label="Font Size" value={t.fontSize} min={12} max={120} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, fontSize: v }))} />
           <SliderRow label="Font Weight" value={t.fontWeight} min={100} max={900} step={100} fmt={v => `${v}`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, fontWeight: v }))} />
+          <div>
+            <div className="label-mono mb-1">Alignment</div>
+            <div className="grid grid-cols-3 gap-1">
+              {(['left', 'center', 'right'] as const).map(align => (
+                <button
+                  key={align}
+                  className={`py-1.5 text-[10px] rounded-md border cursor-pointer transition-all capitalize ${t.align === align ? 'border-acc bg-acc/10 text-acc' : 'border-line bg-panel text-mut'}`}
+                  onClick={() => { checkpoint(); patch((x: any) => ({ ...x, align })); }}
+                >
+                  {align}
+                </button>
+              ))}
+            </div>
+          </div>
           <ColorInput value={t.color} onChange={v => patch((x: any) => ({ ...x, color: v }))} label="text color" />
         </div>
       </Section>
@@ -496,6 +661,38 @@ function TextBoxProps({ t }: { t: any }) {
         <SliderRow label="Width" value={Math.round(t.width * 100)} min={10} max={80} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, width: v / 100 }))} />
         <SliderRow label="Rotation" value={t.rotation} min={-180} max={180} fmt={v => `${v}°`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, rotation: v }))} />
         <SliderRow label="Opacity" value={Math.round(t.opacity * 100)} min={10} max={100} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, opacity: v / 100 }))} />
+      </Section>
+
+      <Section title="Background">
+        <div>
+          <div className="label-mono mb-1">Type</div>
+          <div className="grid grid-cols-4 gap-1">
+            {(['none', 'solid', 'gradient', 'glass'] as const).map(type => (
+              <button
+                key={type}
+                className={`py-1.5 text-[10px] rounded-md border cursor-pointer transition-all capitalize ${t.bgType === type ? 'border-acc bg-acc/10 text-acc' : 'border-line bg-panel text-mut'}`}
+                onClick={() => { checkpoint(); patch((x: any) => ({ ...x, bgType: type })); }}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+        {t.bgType !== 'none' && (
+          <>
+            <ColorInput value={t.bgColor} onChange={v => patch((x: any) => ({ ...x, bgColor: v }))} label="bg color" />
+            <SliderRow label="Padding" value={t.padding} min={0} max={40} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, padding: v }))} />
+            <SliderRow label="Border Radius" value={t.borderRadius} min={0} max={30} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch((x: any) => ({ ...x, borderRadius: v }))} />
+          </>
+        )}
+      </Section>
+
+      <Section title="Effects">
+        <Toggle on={t.shadow} onChange={v => patch((x: any) => ({ ...x, shadow: v }))} label="Shadow" />
+        <Toggle on={t.glow} onChange={v => patch((x: any) => ({ ...x, glow: v }))} label="Glow" />
+        {t.glow && (
+          <ColorInput value={t.glowColor} onChange={v => patch((x: any) => ({ ...x, glowColor: v }))} label="glow color" />
+        )}
       </Section>
     </>
   );
@@ -556,6 +753,38 @@ function IconProps({ i }: { i: import('../types').IconLayer }) {
         <Toggle on={i.shadow} onChange={(v) => { checkpoint(); patch(x => ({ ...x, shadow: v })); }} label="Shadow" />
         <Toggle on={i.glow} onChange={(v) => { checkpoint(); patch(x => ({ ...x, glow: v })); }} label="Glow" />
       </Section>
+
+      <Section title="Material Style">
+        <div className="grid grid-cols-3 gap-1">
+          {(['matte', 'glossy', 'glass', 'metallic', 'ceramic', 'holographic'] as const).map(mat => (
+            <button
+              key={mat}
+              onClick={() => { 
+                checkpoint(); 
+                // Apply material-specific styling
+                const materialStyles = {
+                  matte: { shadow: false, glow: false, bgStyle: 'rounded' as const, bgColor: '#888888' },
+                  glossy: { shadow: true, glow: false, bgStyle: 'gradient' as const, bgColor: '#ffffff' },
+                  glass: { shadow: false, glow: false, bgStyle: 'glass' as const, bgColor: '#ffffff' },
+                  metallic: { shadow: true, glow: false, bgStyle: 'gradient' as const, bgColor: '#c0c0c0' },
+                  ceramic: { shadow: true, glow: false, bgStyle: 'rounded' as const, bgColor: '#f5f5f5' },
+                  holographic: { shadow: false, glow: true, bgStyle: 'gradient' as const, bgColor: '#ff69b4' },
+                };
+                patch(x => ({ ...x, ...materialStyles[mat] }));
+              }}
+              className="py-1.5 text-[10px] rounded-md border cursor-pointer transition-all capitalize"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                borderColor: 'var(--color-line)',
+                background: 'var(--color-panel)',
+                color: 'var(--color-mut)',
+              }}
+            >
+              {mat}
+            </button>
+          ))}
+        </div>
+      </Section>
     </>
   );
 }
@@ -588,6 +817,7 @@ function LayersList() {
           );
         })}
 
+        {/* Text Boxes */}
         {project.textboxes?.map((tb: any) => {
           const on = selection?.kind === 'textbox' && selection.id === tb.id;
           return (
@@ -604,6 +834,7 @@ function LayersList() {
           );
         })}
 
+        {/* Icons */}
         {project.icons?.map((icon: any) => {
           const on = selection?.kind === 'icon' && selection.id === icon.id;
           return (
@@ -620,6 +851,7 @@ function LayersList() {
           );
         })}
 
+        {/* Decorations */}
         {project.decos?.map((deco: any) => {
           const on = selection?.kind === 'deco' && selection.id === deco.id;
           return (
