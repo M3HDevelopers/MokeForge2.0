@@ -316,34 +316,31 @@ function VariationsTab() {
           </div>
         </div>
         <button className="btn btn-acc" onClick={gen} disabled={busy}>
-          {busy ? (
-            <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <IcRefresh size={14} />
-          )}
+          <IcRefresh size={14} />
           {currentVariations.length ? 'Generate more' : 'Generate 10'}
+          {busy && <div className="ml-2 w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" style={{ animation: 'spin 1s linear infinite' }} />}
         </button>
       </div>
 
       {/* Content */}
-      {currentVariations.length === 0 && !busy && (
+      <div style={{ display: currentVariations.length === 0 && !busy ? 'block' : 'none' }}>
         <div className="py-16 text-center">
           <div className="mx-auto mb-3 w-fit text-dim"><IcGrid size={30} /></div>
           <p className="text-[12.5px] text-mut">
             No {activeTab} variations yet. Click generate to create 10 variations.
           </p>
         </div>
-      )}
+      </div>
 
-      {busy && (
+      <div style={{ display: busy ? 'block' : 'none' }}>
         <div className="grid grid-cols-5 gap-3">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="aspect-[8/5] rounded-lg" style={{ background: 'linear-gradient(90deg,#1d1f24,#262932,#1d1f24)', backgroundSize: '400px 100%', animation: 'shimmer 1.2s infinite linear' }} />
           ))}
         </div>
-      )}
+      </div>
 
-      {!busy && currentVariations.length > 0 && (
+      <div style={{ display: !busy && currentVariations.length > 0 ? 'block' : 'none' }}>
         <div className="grid grid-cols-5 gap-3 stagger">
           {currentVariations.map(v => (
             <button key={v.id} onClick={() => applyVariation(v.id)} className="group text-left">
@@ -360,7 +357,7 @@ function VariationsTab() {
             </button>
           ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
