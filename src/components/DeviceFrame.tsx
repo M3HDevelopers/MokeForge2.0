@@ -17,7 +17,10 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
 
   const glare = (
     <g clipPath={`url(#${clip})`}>
-      <polygon points={`${g.x},${g.y} ${g.x + g.w * 0.45},${g.y} ${g.x + g.w * 0.16},${g.y + g.h} ${g.x},${g.y + g.h}`} fill={`rgba(255,255,255,${0.055 * k})`} />
+      <polygon
+        points={`${g.x},${g.y} ${g.x + g.w * 0.45},${g.y} ${g.x + g.w * 0.16},${g.y + g.h} ${g.x},${g.y + g.h}`}
+        fill={`rgba(255,255,255,${0.055 * k})`}
+      />
       <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={g.r} fill="none" stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
     </g>
   );
@@ -29,12 +32,15 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 pointer-events-none" style={{ overflow: 'visible' }}>
       <defs>
-        <clipPath id={clip}><rect x={g.x} y={g.y} width={g.w} height={g.h} rx={g.r} /></clipPath>
+        <clipPath id={clip}>
+          <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={g.r} />
+        </clipPath>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
       </defs>
+
       {part === 'back' && (
         <>
           {kind === 'laptop' && (() => {
@@ -50,6 +56,7 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
               </>
             );
           })()}
+
           {kind === 'phone' && (
             <>
               <rect x={0} y={0} width={w} height={h} rx={w * 0.13 * radiusMul} fill={color} stroke={shade(color, -25)} strokeWidth="1" />
@@ -58,6 +65,7 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
               <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={g.r} fill="#0b0c0f" />
             </>
           )}
+
           {kind === 'tablet' && (
             <>
               <rect x={0} y={0} width={w} height={h} rx={w * 0.035 * radiusMul} fill={color} stroke={shade(color, -22)} strokeWidth="1" />
@@ -65,6 +73,7 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
               <circle cx={w / 2} cy={g.y / 2} r={Math.max(1.8, w * 0.0045)} fill={shade(color, -38)} />
             </>
           )}
+
           {kind === 'browser' && (() => {
             const chromeH = g.y;
             const dotR = Math.max(3, chromeH * 0.12);
@@ -72,12 +81,21 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
               <>
                 <rect x={0} y={0} width={w} height={h} rx={w * 0.02} fill={color} stroke={shade(color, -18)} strokeWidth="1" />
                 <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={g.r} fill={light ? '#fbfbfc' : '#15171b'} />
-                {['#ff5f57', '#febc2e', '#28c840'].map((c, i) => (<circle key={c} cx={chromeH * 0.55 + i * dotR * 2.6} cy={chromeH / 2} r={dotR} fill={c} />))}
+                {['#ff5f57', '#febc2e', '#28c840'].map((c, i) => (
+                  <circle key={c} cx={chromeH * 0.55 + i * dotR * 2.6} cy={chromeH / 2} r={dotR} fill={c} />
+                ))}
                 <rect x={(w - w * 0.38) / 2} y={chromeH / 2 - chromeH * 0.27} width={w * 0.38} height={chromeH * 0.54} rx={chromeH * 0.27} fill={light ? '#e9ebef' : '#2c313a'} />
-                <text x={w / 2} y={chromeH / 2 + 1} textAnchor="middle" dominantBaseline="central" fill={light ? '#6b7280' : '#9aa1ad'} style={{ font: `500 ${Math.max(9, chromeH * 0.3)}px "JetBrains Mono", monospace` }}>{url || 'yourapp.com'}</text>
+                <text
+                  x={w / 2} y={chromeH / 2 + 1} textAnchor="middle" dominantBaseline="central"
+                  fill={light ? '#6b7280' : '#9aa1ad'}
+                  style={{ font: `500 ${Math.max(9, chromeH * 0.3)}px "JetBrains Mono", monospace` }}
+                >
+                  {url || 'yourapp.com'}
+                </text>
               </>
             );
           })()}
+
           {kind === 'monitor' && (() => {
             const standH = h * 0.15, screenH = h - standH;
             return (
@@ -85,18 +103,25 @@ export function DeviceFrame({ kind, color, w, h, part, url, radiusMul = 1, mater
                 <rect x={0} y={0} width={w} height={screenH} rx={w * 0.012} fill={color} stroke={shade(color, -20)} strokeWidth="1" />
                 <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={g.r} fill="#0b0c0f" />
                 <circle cx={w / 2} cy={screenH - (screenH - g.y - g.h) / 2} r={Math.max(1.6, w * 0.004)} fill={shade(color, -30)} />
-                <polygon points={`${w * 0.465},${screenH} ${w * 0.535},${screenH} ${w * 0.55},${screenH + standH * 0.72} ${w * 0.45},${screenH + standH * 0.72}`} fill={shade(color, -16)} />
+                <polygon
+                  points={`${w * 0.465},${screenH} ${w * 0.535},${screenH} ${w * 0.55},${screenH + standH * 0.72} ${w * 0.45},${screenH + standH * 0.72}`}
+                  fill={shade(color, -16)}
+                />
                 <rect x={w / 2 - w * 0.12} y={screenH + standH * 0.72} width={w * 0.24} height={standH * 0.2} rx={standH * 0.1} fill={shade(color, -6)} />
               </>
             );
           })()}
         </>
       )}
+
       {part === 'front' && (
         <>
           {kind === 'phone' && (
             <>
-              <rect x={w / 2 - g.w * 0.15} y={g.y + g.h * 0.022} width={g.w * 0.3} height={g.h * 0.03} rx={g.h * 0.015} fill="#0b0c0f" stroke="#26282e" strokeWidth="1" />
+              <rect
+                x={w / 2 - g.w * 0.15} y={g.y + g.h * 0.022} width={g.w * 0.3} height={g.h * 0.03}
+                rx={g.h * 0.015} fill="#0b0c0f" stroke="#26282e" strokeWidth="1"
+              />
               <rect x={w / 2 - g.w * 0.18} y={g.y + g.h * 0.965} width={g.w * 0.36} height={Math.max(3, h * 0.005)} rx={2} fill="rgba(255,255,255,0.4)" />
             </>
           )}

@@ -62,3 +62,4 @@ export const IcCompare = (p: P) => <svg {...base(p)}><rect x="3.5" y="5" width="
 export const IcSearch = (p: P) => <svg {...base(p)}><circle cx="10.5" cy="10.5" r="6.5" /><path d="m20 20-4.5-4.5" /></svg>;
 export const IcAlignH = (p: P) => <svg {...base(p)}><path d="M4 12h16" /><rect x="6" y="7" width="4" height="10" rx="1" /><rect x="14" y="9" width="4" height="6" rx="1" /></svg>;
 export const IcAlignV = (p: P) => <svg {...base(p)}><path d="M12 4v16" /><rect x="7" y="6" width="10" height="4" rx="1" /><rect x="9" y="14" width="6" height="4" rx="1" /></svg>;
+export const IcKeyboard = (p: P) => <svg {...base(p)}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12" /></svg>;

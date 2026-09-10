@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { PosPreset } from '../types';
 import { POSITIONS } from '../templates';
 
+/* ---------------- section wrapper ---------------- */
 export function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
     <div className="px-3.5 py-3.5 border-b border-line2">
@@ -14,6 +15,7 @@ export function Section({ title, children, right }: { title: string; children: R
   );
 }
 
+/* ---------------- segmented control ---------------- */
 export function Seg<T extends string>({ options, value, onChange }: {
   options: { id: T; label: string }[]; value: T; onChange: (v: T) => void;
 }) {
@@ -28,6 +30,7 @@ export function Seg<T extends string>({ options, value, onChange }: {
   );
 }
 
+/* ---------------- slider row ---------------- */
 export function SliderRow({ label, value, min, max, step = 1, fmt, onStart, onChange }: {
   label: string; value: number; min: number; max: number; step?: number;
   fmt?: (v: number) => string;
@@ -52,32 +55,56 @@ export function SliderRow({ label, value, min, max, step = 1, fmt, onStart, onCh
   );
 }
 
+/* ---------------- toggle ---------------- */
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
-    <button onClick={() => onChange(!on)} className="flex items-center gap-2 cursor-pointer">
-      <div className="relative w-9 h-5 rounded-full transition-colors" style={{ background: on ? 'var(--color-acc)' : 'var(--color-panel3)' }}>
-        <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all" style={{ left: on ? 'calc(100% - 18px)' : '2px' }} />
+    <button
+      onClick={() => onChange(!on)}
+      className="flex items-center gap-2 cursor-pointer"
+    >
+      <div
+        className="relative w-9 h-5 rounded-full transition-colors"
+        style={{ background: on ? 'var(--color-acc)' : 'var(--color-panel3)' }}
+      >
+        <div
+          className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+          style={{ left: on ? 'calc(100% - 18px)' : '2px' }}
+        />
       </div>
       {label && <span className="text-[11px] text-mut">{label}</span>}
     </button>
   );
 }
 
+/* ---------------- color input ---------------- */
 export function ColorInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) {
   return (
     <div className="flex items-center gap-2">
-      <input type="color" className="swatch-input" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input
+        type="color" className="swatch-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
       {label && <span className="text-[10px] text-dim">{label}</span>}
     </div>
   );
 }
 
+/* ---------------- position grid ---------------- */
 export function PosGrid({ value, onChange }: { value: PosPreset; onChange: (v: PosPreset) => void }) {
   return (
     <div className="grid grid-cols-3 gap-1">
       {POSITIONS.map(p => (
-        <button key={p} onClick={() => onChange(p)} className="h-8 rounded border text-[9px] transition-all"
-          style={{ borderColor: value === p ? 'var(--color-acc)' : 'var(--color-line)', background: value === p ? 'rgba(255,107,61,0.12)' : 'var(--color-panel)', color: value === p ? 'var(--color-acc)' : 'var(--color-mut)' }}>
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          className="h-8 rounded border text-[9px] transition-all"
+          style={{
+            borderColor: value === p ? 'var(--color-acc)' : 'var(--color-line)',
+            background: value === p ? 'rgba(255,107,61,0.12)' : 'var(--color-panel)',
+            color: value === p ? 'var(--color-acc)' : 'var(--color-mut)',
+          }}
+        >
           {p.replace('-', ' ')}
         </button>
       ))}
