@@ -1137,12 +1137,264 @@ function DeviceNode({ d, guides, setGuides, setDistanceInfo, onDragStart, onDrag
   );
 }
 
+function CanvasImageLayer({ canvasImg, canvasW, canvasH, asset, onDragStart, onDragEnd }: { 
+  canvasImg: any; 
+  canvasW: number; 
+  canvasH: number; 
+  asset: any; 
+  onDragStart: () => void; 
+  onDragEnd: () => void;
+}) {
+  const setSelection = useStudio(s => s.setSelection);
+  const addToSelection = useStudio(s => s.addToSelection);
+  const selection = useStudio(s => s.selection);
+  const updateCanvasImage = useStudio(s => s.updateCanvasImage);
+  const checkpoint = useStudio(s => s.checkpoint);
+  const zoom = useStudio(s => s.zoom);
+  const selected = useStudio(s => s.selection?.kind === 'image' && (s.selection.id === canvasImg.id || s.selection.ids?.includes(canvasImg.id)));
+  
+  if (!asset || canvasImg.hidden) return null;
+  
+  const imgW = canvasImg.width * canvasW;
+  const imgH = canvasImg.height * canvasH;
+  const x = canvasImg.x * canvasW;
+  const y = canvasImg.y * canvasH;
+  
+  const dragRef = useRef<{ mode: 'move' | 'resize-nw' | 'resize-ne' | 'resize-sw' | 'resize-se' | 'resize-n' | 'resize-s' | 'resize-e' | 'resize-w' | 'rotate'; sx: number; sy: number; ox: number; oy: number; ow: number; oh: number; startAngle?: number } | null>(null);
+  
+  const onDown = (e: RPointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    
+    if (canvasImg.locked) return;
+    
+    // Multi-select with Shift key
+    if (e.shiftKey) {
+      if (selection?.kind === 'image' && selection.ids?.includes(canvasImg.id)) {
+        useStudio.getState().removeFromSelection('image', canvasImg.id);
+      } else {
+        addToSelection('image', canvasImg.id);
+      }
+    } else {
+      setSelection({ kind: 'image', id: canvasImg.id, ids: [canvasImg.id] });
+    }
+    
+    checkpoint();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { mode: 'move', sx: e.clientX, sy: e.clientY, ox: canvasImg.x, oy: canvasImg.y, ow: canvasImg.width, oh: canvasImg.height };
+    onDragStart();
+  };
+  
+  const onMove = (e: RPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || canvasImg.locked) return;
+    
+    const dx = (e.clientX - drag.sx) / zoom / canvasW;
+    const dy = (e.clientY - drag.sy) / zoom / canvasH;
+    
+    if (drag.mode === 'move') {
+      updateCanvasImage(canvasImg.id, { x: drag.ox + dx, y: drag.oy + dy });
+    } else if (drag.mode === 'resize-se') {
+      const newWidth = Math.max(0.05, drag.ow + dx);
+      const newHeight = Math.max(0.05, drag.oh + dy);
+      updateCanvasImage(canvasImg.id, { width: newWidth, height: newHeight });
+    } else if (drag.mode === 'resize-nw') {
+      const newWidth = Math.max(0.05, drag.ow - dx);
+      const newHeight = Math.max(0.05, drag.oh - dy);
+      updateCanvasImage(canvasImg.id, { 
+        x: drag.ox + dx, 
+        y: drag.oy + dy,
+        width: newWidth, 
+        height: newHeight 
+      });
+    } else if (drag.mode === 'resize-ne') {
+      const newWidth = Math.max(0.05, drag.ow + dx);
+      const newHeight = Math.max(0.05, drag.oh - dy);
+      updateCanvasImage(canvasImg.id, { 
+        y: drag.oy + dy,
+        width: newWidth, 
+        height: newHeight 
+      });
+    } else if (drag.mode === 'resize-sw') {
+      const newWidth = Math.max(0.05, drag.ow - dx);
+      const newHeight = Math.max(0.05, drag.oh + dy);
+      updateCanvasImage(canvasImg.id, { 
+        x: drag.ox + dx,
+        width: newWidth, 
+        height: newHeight 
+      });
+    } else if (drag.mode === 'resize-n') {
+      const newHeight = Math.max(0.05, drag.oh - dy);
+      updateCanvasImage(canvasImg.id, { 
+        y: drag.oy + dy,
+        height: newHeight 
+      });
+    } else if (drag.mode === 'resize-s') {
+      const newHeight = Math.max(0.05, drag.oh + dy);
+      updateCanvasImage(canvasImg.id, { height: newHeight });
+    } else if (drag.mode === 'resize-e') {
+      const newWidth = Math.max(0.05, drag.ow + dx);
+      updateCanvasImage(canvasImg.id, { width: newWidth });
+    } else if (drag.mode === 'resize-w') {
+      const newWidth = Math.max(0.05, drag.ow - dx);
+      updateCanvasImage(canvasImg.id, { x: drag.ox + dx, width: newWidth });
+    } else if (drag.mode === 'rotate') {
+      const centerX = (drag.ox + drag.ow / 2) * canvasW;
+      const centerY = (drag.oy + drag.oh / 2) * canvasH;
+      const currentAngle = Math.atan2(e.clientY / zoom - centerY, e.clientX / zoom - centerX) * (180 / Math.PI);
+      const startAngle = drag.startAngle || 0;
+      const newRotation = canvasImg.rotation + (currentAngle - startAngle);
+      updateCanvasImage(canvasImg.id, { rotation: newRotation });
+      drag.startAngle = currentAngle;
+    }
+  };
+  
+  const onUp = () => {
+    dragRef.current = null;
+    onDragEnd();
+  };
+  
+  const handleResizeStart = (mode: any, e: RPointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (canvasImg.locked) return;
+    
+    checkpoint();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { mode, sx: e.clientX, sy: e.clientY, ox: canvasImg.x, oy: canvasImg.y, ow: canvasImg.width, oh: canvasImg.height };
+    onDragStart();
+  };
+  
+  const handleRotateStart = (e: RPointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (canvasImg.locked) return;
+    
+    checkpoint();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const centerX = (canvasImg.x + canvasImg.width / 2) * canvasW;
+    const centerY = (canvasImg.y + canvasImg.height / 2) * canvasH;
+    const startAngle = Math.atan2(e.clientY / zoom - centerY, e.clientX / zoom - centerX) * (180 / Math.PI);
+    dragRef.current = { mode: 'rotate', sx: e.clientX, sy: e.clientY, ox: canvasImg.x, oy: canvasImg.y, ow: canvasImg.width, oh: canvasImg.height, startAngle };
+    onDragStart();
+  };
+  
+  const filterStyle = [
+    canvasImg.brightness !== 1 ? `brightness(${canvasImg.brightness})` : '',
+    canvasImg.contrast !== 1 ? `contrast(${canvasImg.contrast})` : '',
+    canvasImg.saturation !== 1 ? `saturate(${canvasImg.saturation})` : '',
+    canvasImg.blur > 0 ? `blur(${canvasImg.blur}px)` : '',
+  ].filter(Boolean).join(' ') || undefined;
+  
+  const handleSize = 8;
+  
+  return (
+    <div
+      className={`absolute ${canvasImg.locked ? 'cursor-not-allowed' : 'cursor-move'}`}
+      style={{
+        left: x,
+        top: y,
+        width: imgW,
+        height: imgH,
+        transform: `rotate(${canvasImg.rotation}deg)`,
+        opacity: canvasImg.opacity,
+        borderRadius: canvasImg.borderRadius,
+        border: canvasImg.borderColor ? `${canvasImg.borderWidth}px solid ${canvasImg.borderColor}` : undefined,
+        boxShadow: canvasImg.shadow ? '0 4px 12px rgba(0,0,0,0.3)' : undefined,
+        pointerEvents: 'auto',
+        zIndex: canvasImg.zIndex + 100,
+      }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
+      <img
+        src={asset.dataUrl}
+        alt={canvasImg.name}
+        draggable={false}
+        className="w-full h-full object-cover pointer-events-none"
+        style={{ filter: filterStyle, borderRadius: canvasImg.borderRadius }}
+      />
+      
+      {/* Selection Ring */}
+      {selected && (
+        <div 
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            border: '2px solid var(--color-acc)',
+            borderRadius: canvasImg.borderRadius,
+          }}
+        />
+      )}
+      
+      {/* Resize Handles - Only show when selected */}
+      {selected && !canvasImg.locked && (
+        <>
+          {/* Corner Handles */}
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-nw-resize"
+            style={{ left: -handleSize/2, top: -handleSize/2, width: handleSize, height: handleSize }}
+            onPointerDown={(e) => handleResizeStart('resize-nw', e)}
+          />
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-ne-resize"
+            style={{ right: -handleSize/2, top: -handleSize/2, width: handleSize, height: handleSize }}
+            onPointerDown={(e) => handleResizeStart('resize-ne', e)}
+          />
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-sw-resize"
+            style={{ left: -handleSize/2, bottom: -handleSize/2, width: handleSize, height: handleSize }}
+            onPointerDown={(e) => handleResizeStart('resize-sw', e)}
+          />
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-se-resize"
+            style={{ right: -handleSize/2, bottom: -handleSize/2, width: handleSize, height: handleSize }}
+            onPointerDown={(e) => handleResizeStart('resize-se', e)}
+          />
+          
+          {/* Side Handles */}
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-n-resize"
+            style={{ left: '50%', top: -handleSize/2, width: handleSize, height: handleSize, transform: 'translateX(-50%)' }}
+            onPointerDown={(e) => handleResizeStart('resize-n', e)}
+          />
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-s-resize"
+            style={{ left: '50%', bottom: -handleSize/2, width: handleSize, height: handleSize, transform: 'translateX(-50%)' }}
+            onPointerDown={(e) => handleResizeStart('resize-s', e)}
+          />
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-e-resize"
+            style={{ right: -handleSize/2, top: '50%', width: handleSize, height: handleSize, transform: 'translateY(-50%)' }}
+            onPointerDown={(e) => handleResizeStart('resize-e', e)}
+          />
+          <div
+            className="absolute bg-white border-2 border-acc rounded-sm cursor-w-resize"
+            style={{ left: -handleSize/2, top: '50%', width: handleSize, height: handleSize, transform: 'translateY(-50%)' }}
+            onPointerDown={(e) => handleResizeStart('resize-w', e)}
+          />
+          
+          {/* Rotation Handle */}
+          <div
+            className="absolute bg-acc2 border-2 border-white rounded-full cursor-grab"
+            style={{ left: '50%', top: -30, width: 12, height: 12, transform: 'translateX(-50%)' }}
+            onPointerDown={handleRotateStart}
+          />
+          <div
+            className="absolute bg-transparent pointer-events-none"
+            style={{ left: '50%', top: -18, width: 1, height: 18, background: 'var(--color-acc)', transform: 'translateX(-50%)' }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?: 'select' | 'zoom' | 'pan'; onContextMenu?: (e: React.MouseEvent) => void }) {
   const p = useStudio(s => s.project)!;
   const zoom = useStudio(s => s.zoom);
   const setZoom = useStudio(s => s.setZoom);
   const setSelection = useStudio(s => s.setSelection);
   const selection = useStudio(s => s.selection);
+  const addCanvasImage = useStudio(s => s.addCanvasImage);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<{ v: number | null; h: number | null }>({ v: null, h: null });
   const [distanceInfo, setDistanceInfo] = useState<{ left?: number; right?: number; top?: number; bottom?: number; gapX?: number; gapY?: number } | null>(null);
@@ -1163,6 +1415,83 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoom, setZoom]);
+
+  // Drag and drop support for images
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    // Check if dragging from assets (has asset-id)
+    const assetId = e.dataTransfer.getData('text/asset-id');
+    if (assetId) {
+      // Dragging from assets panel
+      const project = useStudio.getState().project;
+      if (!project) return;
+      
+      const asset = project.assets.find(a => a.id === assetId);
+      if (!asset) return;
+      
+      // Get drop position relative to canvas
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dropX = (e.clientX - rect.left) / zoom;
+      const dropY = (e.clientY - rect.top) / zoom;
+      
+      const imgWidth = Math.min(p.canvas.w * 0.4, asset.w * 0.3);
+      const imgHeight = imgWidth * (asset.h / asset.w);
+      
+      addCanvasImage(
+        asset.id,
+        dropX - imgWidth / 2,
+        dropY - imgHeight / 2,
+        imgWidth,
+        imgHeight
+      );
+      
+      useStudio.getState().toast('Image added to canvas');
+      return;
+    }
+    
+    // Otherwise, check if dragging files from computer
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    // Get drop position relative to canvas
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropX = (e.clientX - rect.left) / zoom;
+    const dropY = (e.clientY - rect.top) / zoom;
+
+    // Upload files to assets
+    const addFiles = useStudio.getState().addFiles;
+    await addFiles(files);
+
+    // Get newly added assets
+    const project = useStudio.getState().project;
+    if (!project) return;
+
+    const newAssets = project.assets.slice(-files.length);
+
+    // Add each image to canvas at drop position
+    newAssets.forEach((asset, index) => {
+      const imgWidth = Math.min(p.canvas.w * 0.4, asset.w * 0.3);
+      const imgHeight = imgWidth * (asset.h / asset.w);
+      const offsetX = index * 20; // Offset multiple images
+      const offsetY = index * 20;
+      
+      addCanvasImage(
+        asset.id, 
+        dropX - imgWidth / 2 + offsetX, 
+        dropY - imgHeight / 2 + offsetY, 
+        imgWidth, 
+        imgHeight
+      );
+    });
+
+    useStudio.getState().toast(`${files.length} image${files.length > 1 ? 's' : ''} added to canvas`);
+  };
 
   // Pan handlers
   const handlePanStart = (e: React.PointerEvent) => {
@@ -1278,6 +1607,8 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
         cursor: toolMode === 'zoom' ? 'zoom-in' : toolMode === 'pan' ? (isPanning ? 'grabbing' : 'grab') : 'default'
       }}
       onPointerDown={handlePanStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       onPointerMove={handlePanMove}
       onPointerUp={handlePanEnd}
       onPointerCancel={handlePanEnd}
@@ -1325,6 +1656,9 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
             ))}
             {p.textboxes.map(textbox => (
               <TextBoxLayer key={textbox.id} textbox={textbox} canvasW={p.canvas.w} canvasH={p.canvas.h} onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)} />
+            ))}
+            {p.canvasImages.map(canvasImg => (
+              <CanvasImageLayer key={canvasImg.id} canvasImg={canvasImg} canvasW={p.canvas.w} canvasH={p.canvas.h} asset={p.assets.find(a => a.id === canvasImg.assetId)} onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)} />
             ))}
             <LogoOverlay p={p} />
             <TextOverlay p={p} />
@@ -1422,6 +1756,22 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
                     y: t.y * p.canvas.h,
                     width: t.width * p.canvas.w,
                     height: t.fontSize * 1.5
+                  }));
+                }
+              } else if (selection.kind === 'image') {
+                const selectedImage = p.canvasImages.find(img => img.id === selection.id);
+                if (selectedImage) {
+                  selectedObject = {
+                    x: selectedImage.x * p.canvas.w,
+                    y: selectedImage.y * p.canvas.h,
+                    width: selectedImage.width * p.canvas.w,
+                    height: selectedImage.height * p.canvas.h
+                  };
+                  otherObjects = p.canvasImages.filter(img => img.id !== selection.id).map(img => ({
+                    x: img.x * p.canvas.w,
+                    y: img.y * p.canvas.h,
+                    width: img.width * p.canvas.w,
+                    height: img.height * p.canvas.h
                   }));
                 }
               }

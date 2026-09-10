@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  Asset, DecoDepth, DesignSnapshot, DeviceKind, GenLocks, Mood, Project, Selection, SurpriseMode, Toast,
+  Asset, CanvasImage, CursorState, DecoDepth, DesignSnapshot, DeviceKind, GenLocks, Group, Mood, Project, Selection, SelectionMode, SurpriseMode, Toast,
 } from './types';
 import {
   applyLayoutPositions, clamp, DEVICE_META, makeDefaultProject, makeDevice, migrate,
@@ -93,6 +93,14 @@ interface StudioState {
   exportOpen: boolean;
   toasts: Toast[];
   totalExports: number;
+  
+  /* Part 1: Canvas Interaction State */
+  cursorState: CursorState;
+  selectionMode: SelectionMode;
+  isPanning: boolean;
+  isMarqueeSelecting: boolean;
+  marqueeStart: { x: number; y: number } | null;
+  marqueeEnd: { x: number; y: number } | null;
 
   /* new: generation */
   mood: Mood;
@@ -197,6 +205,34 @@ interface StudioState {
   clearSelection: () => void;
   setExportOpen: (v: boolean) => void;
   trackExport: () => void;
+  
+  /* Part 1: Canvas Interaction Actions */
+  setCursorState: (state: CursorState) => void;
+  setSelectionMode: (mode: SelectionMode) => void;
+  setIsPanning: (isPanning: boolean) => void;
+  startMarqueeSelection: (x: number, y: number) => void;
+  updateMarqueeSelection: (x: number, y: number) => void;
+  endMarqueeSelection: () => void;
+  
+  // Canvas Image Actions
+  addCanvasImage: (assetId: string, x: number, y: number, width: number, height: number) => void;
+  updateCanvasImage: (id: string, updates: Partial<CanvasImage>) => void;
+  removeCanvasImage: (id: string) => void;
+  duplicateCanvasImage: (id: string) => void;
+  
+  // Group Actions
+  createGroup: (objectIds: { type: 'device' | 'image' | 'textbox' | 'icon' | 'deco'; id: string }[]) => void;
+  ungroup: (groupId: string) => void;
+  updateGroup: (id: string, updates: Partial<Group>) => void;
+  
+  // Lock/Hide Actions for Canvas Images
+  lockCanvasImage: (id: string) => void;
+  unlockCanvasImage: (id: string) => void;
+  hideCanvasImage: (id: string) => void;
+  showCanvasImage: (id: string) => void;
+  
+  // Multi-selection Actions
+  selectMultipleObjects: (objects: { type: 'device' | 'image' | 'textbox' | 'icon' | 'deco'; id: string }[]) => void;
 }
 
 function snapshot(p: Project, label: string, thumb: string): DesignSnapshot {
@@ -223,6 +259,14 @@ export const useStudio = create<StudioState>((set, get) => ({
   exportOpen: false,
   toasts: [],
   totalExports: loadStats().totalExports,
+  
+  /* Part 1: Canvas Interaction State */
+  cursorState: 'default',
+  selectionMode: 'contain',
+  isPanning: false,
+  isMarqueeSelecting: false,
+  marqueeStart: null,
+  marqueeEnd: null,
 
   mood: 'auto',
   locks: { devices: false, background: false, decoration: false, text: false, logo: false },
@@ -952,6 +996,230 @@ export const useStudio = create<StudioState>((set, get) => ({
       set(s => ({ projects: next, project: s.project ? { ...s.project, exportCount: s.project.exportCount + 1 } : null }));
     }
     set({ totalExports: total });
+  },
+  
+  /* Part 1: Canvas Interaction Actions */
+  setCursorState: (state) => set({ cursorState: state }),
+  setSelectionMode: (mode) => set({ selectionMode: mode }),
+  setIsPanning: (isPanning) => set({ isPanning }),
+  
+  startMarqueeSelection: (x, y) => set({ isMarqueeSelecting: true, marqueeStart: { x, y }, marqueeEnd: { x, y } }),
+  updateMarqueeSelection: (x, y) => set({ marqueeEnd: { x, y } }),
+  endMarqueeSelection: () => {
+    const { marqueeStart, marqueeEnd, project, selectionMode } = get();
+    if (!project || !marqueeStart || !marqueeEnd) {
+      set({ isMarqueeSelecting: false, marqueeStart: null, marqueeEnd: null });
+      return;
+    }
+    
+    // Calculate selection box
+    const minX = Math.min(marqueeStart.x, marqueeEnd.x);
+    const maxX = Math.max(marqueeStart.x, marqueeEnd.x);
+    const minY = Math.min(marqueeStart.y, marqueeEnd.y);
+    const maxY = Math.max(marqueeStart.y, marqueeEnd.y);
+    
+    // Find objects within selection box
+    const selectedObjects: { type: 'device' | 'image' | 'textbox' | 'icon' | 'deco'; id: string }[] = [];
+    
+    // Check devices
+    project.devices.forEach(d => {
+      const deviceH = d.w / DEVICE_META[d.kind].aspect;
+      const intersects = selectionMode === 'contain'
+        ? (d.x >= minX && d.x + d.w <= maxX && d.y >= minY && d.y + deviceH <= maxY)
+        : (d.x < maxX && d.x + d.w > minX && d.y < maxY && d.y + deviceH > minY);
+      if (intersects) selectedObjects.push({ type: 'device', id: d.id });
+    });
+    
+    // Check canvas images
+    project.canvasImages.forEach(img => {
+      const imgW = img.width * project.canvas.w;
+      const imgH = img.height * project.canvas.h;
+      const imgX = img.x * project.canvas.w;
+      const imgY = img.y * project.canvas.h;
+      const intersects = selectionMode === 'contain'
+        ? (imgX >= minX && imgX + imgW <= maxX && imgY >= minY && imgY + imgH <= maxY)
+        : (imgX < maxX && imgX + imgW > minX && imgY < maxY && imgY + imgH > minY);
+      if (intersects) selectedObjects.push({ type: 'image', id: img.id });
+    });
+    
+    // Check textboxes
+    project.textboxes.forEach(tb => {
+      const tbW = tb.width * project.canvas.w;
+      const tbH = tb.fontSize * 1.5; // Approximate height
+      const tbX = tb.x * project.canvas.w;
+      const tbY = tb.y * project.canvas.h;
+      const intersects = selectionMode === 'contain'
+        ? (tbX >= minX && tbX + tbW <= maxX && tbY >= minY && tbY + tbH <= maxY)
+        : (tbX < maxX && tbX + tbW > minX && tbY < maxY && tbY + tbH > minY);
+      if (intersects) selectedObjects.push({ type: 'textbox', id: tb.id });
+    });
+    
+    // Check icons
+    project.icons.forEach(icon => {
+      const iconSize = icon.size * Math.min(project.canvas.w, project.canvas.h);
+      const iconX = icon.x * project.canvas.w - iconSize / 2;
+      const iconY = icon.y * project.canvas.h - iconSize / 2;
+      const intersects = selectionMode === 'contain'
+        ? (iconX >= minX && iconX + iconSize <= maxX && iconY >= minY && iconY + iconSize <= maxY)
+        : (iconX < maxX && iconX + iconSize > minX && iconY < maxY && iconY + iconSize > minY);
+      if (intersects) selectedObjects.push({ type: 'icon', id: icon.id });
+    });
+    
+    // Check decorations
+    project.decos.forEach(deco => {
+      const decoSize = deco.scale * Math.min(project.canvas.w, project.canvas.h);
+      const decoX = deco.x * project.canvas.w - decoSize / 2;
+      const decoY = deco.y * project.canvas.h - decoSize / 2;
+      const intersects = selectionMode === 'contain'
+        ? (decoX >= minX && decoX + decoSize <= maxX && decoY >= minY && decoY + decoSize <= maxY)
+        : (decoX < maxX && decoX + decoSize > minX && decoY < maxY && decoY + decoSize > minY);
+      if (intersects) selectedObjects.push({ type: 'deco', id: deco.id });
+    });
+    
+    // Select the first object if any found
+    if (selectedObjects.length > 0) {
+      set({ 
+        selection: { kind: selectedObjects[0].type, id: selectedObjects[0].id, ids: selectedObjects.map(o => o.id) },
+        isMarqueeSelecting: false,
+        marqueeStart: null,
+        marqueeEnd: null,
+      });
+    } else {
+      set({ 
+        selection: null,
+        isMarqueeSelecting: false,
+        marqueeStart: null,
+        marqueeEnd: null,
+      });
+    }
+  },
+  
+  // Canvas Image Actions
+  addCanvasImage: (assetId, x, y, width, height) => {
+    const { project } = get();
+    if (!project) return;
+    
+    const asset = project.assets.find(a => a.id === assetId);
+    if (!asset) return;
+    
+    const newImage: CanvasImage = {
+      id: uid(),
+      assetId,
+      x: x / project.canvas.w,
+      y: y / project.canvas.h,
+      width: width / project.canvas.w,
+      height: height / project.canvas.h,
+      rotation: 0,
+      opacity: 1,
+      locked: false,
+      hidden: false,
+      name: asset.name,
+      zIndex: project.canvasImages.length,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      blur: 0,
+      borderRadius: 0,
+      shadow: false,
+      borderColor: null,
+      borderWidth: 0,
+    };
+    
+    get().update(p => ({ ...p, canvasImages: [...p.canvasImages, newImage] }));
+    set(s => ({ selection: { kind: 'image', id: newImage.id } }));
+  },
+  
+  updateCanvasImage: (id, updates) => {
+    get().update(p => ({
+      ...p,
+      canvasImages: p.canvasImages.map(img => img.id === id ? { ...img, ...updates } : img),
+    }), false);
+  },
+  
+  removeCanvasImage: (id) => {
+    get().update(p => ({ ...p, canvasImages: p.canvasImages.filter(img => img.id !== id) }));
+    set(s => s.selection?.id === id ? { selection: null } : s);
+  },
+  
+  duplicateCanvasImage: (id) => {
+    const { project } = get();
+    if (!project) return;
+    
+    const img = project.canvasImages.find(i => i.id === id);
+    if (!img) return;
+    
+    const newImage: CanvasImage = {
+      ...img,
+      id: uid(),
+      x: img.x + 0.02,
+      y: img.y + 0.02,
+      name: `${img.name} copy`,
+    };
+    
+    get().update(p => ({ ...p, canvasImages: [...p.canvasImages, newImage] }));
+    set({ selection: { kind: 'image', id: newImage.id } });
+  },
+  
+  // Group Actions
+  createGroup: (objectIds) => {
+    if (objectIds.length < 2) return;
+    
+    const newGroup: Group = {
+      id: uid(),
+      name: `Group ${Date.now() % 1000}`,
+      objects: objectIds,
+      x: 0,
+      y: 0,
+      locked: false,
+      hidden: false,
+    };
+    
+    get().update(p => ({ ...p, groups: [...p.groups, newGroup] }));
+  },
+  
+  ungroup: (groupId) => {
+    get().update(p => ({ ...p, groups: p.groups.filter(g => g.id !== groupId) }));
+  },
+  
+  updateGroup: (id, updates) => {
+    get().update(p => ({
+      ...p,
+      groups: p.groups.map(g => g.id === id ? { ...g, ...updates } : g),
+    }), false);
+  },
+  
+  // Lock/Hide Actions for Canvas Images
+  lockCanvasImage: (id) => {
+    get().updateCanvasImage(id, { locked: true });
+  },
+  
+  unlockCanvasImage: (id) => {
+    get().updateCanvasImage(id, { locked: false });
+  },
+  
+  hideCanvasImage: (id) => {
+    get().updateCanvasImage(id, { hidden: true });
+  },
+  
+  showCanvasImage: (id) => {
+    get().updateCanvasImage(id, { hidden: false });
+  },
+  
+  // Multi-selection Actions
+  selectMultipleObjects: (objects) => {
+    if (objects.length === 0) {
+      set({ selection: null });
+    } else if (objects.length === 1) {
+      set({ selection: { kind: objects[0].type, id: objects[0].id } });
+    } else {
+      set({ 
+        selection: { 
+          kind: objects[0].type, 
+          id: objects[0].id,
+          ids: objects.map(o => o.id),
+        } 
+      });
+    }
   },
 }));
 

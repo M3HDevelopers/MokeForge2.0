@@ -200,6 +200,65 @@ export function ContextMenu({ x, y, onClose }: ContextMenuProps) {
           </div>
         </>
       )}
+
+      {selection.kind === 'image' && (
+        <>
+          <div className={menuItemClass} onClick={() => {
+            if (selection.id) {
+              useStudio.getState().duplicateCanvasImage(selection.id);
+              toast('Image duplicated');
+            }
+            onClose();
+          }}>
+            <IcCopy size={14} />
+            <span>Duplicate Image</span>
+            <span className="ml-auto text-[10px]" style={{ color: 'var(--color-dim)' }}>Ctrl+D</span>
+          </div>
+          <div className={menuItemClass} onClick={() => {
+            if (selection.id) {
+              const img = useStudio.getState().project?.canvasImages.find(i => i.id === selection.id);
+              if (img) {
+                useStudio.getState().updateCanvasImage(selection.id, { locked: !img.locked });
+                toast(img.locked ? 'Image unlocked' : 'Image locked');
+              }
+            }
+            onClose();
+          }}>
+            <IcLock size={14} />
+            <span>Toggle Lock</span>
+          </div>
+          <div className={menuItemClass} onClick={() => {
+            if (selection.id) {
+              const img = useStudio.getState().project?.canvasImages.find(i => i.id === selection.id);
+              if (img) {
+                useStudio.getState().updateCanvasImage(selection.id, { hidden: !img.hidden });
+                toast(img.hidden ? 'Image shown' : 'Image hidden');
+              }
+            }
+            onClose();
+          }}>
+            <IcEye size={14} />
+            <span>Toggle Visibility</span>
+          </div>
+          <div className="h-px bg-line my-1" />
+          <div className={menuItemClass} onClick={() => { toast('Edit properties in right panel'); onClose(); }}>
+            <IcType size={14} />
+            <span>Edit Properties →</span>
+          </div>
+          <div className={menuItemClass} onClick={() => {
+            if (selection.id) {
+              checkpoint();
+              useStudio.getState().removeCanvasImage(selection.id);
+              toast('Image deleted');
+            }
+            onClose();
+          }}>
+            <IcTrash size={14} />
+            <span>Delete Image</span>
+            <span className="ml-auto text-[10px]" style={{ color: 'var(--color-dim)' }}>Del</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

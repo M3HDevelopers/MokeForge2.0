@@ -23,11 +23,13 @@ export function RightPanel() {
   const icon = selection?.kind === 'icon' ? project.icons.find(i => i.id === selection.id) : undefined;
   const deco = selection?.kind === 'deco' ? project.decos.find(d => d.id === selection.id) : undefined;
   const textbox = selection?.kind === 'textbox' ? project.textboxes.find(t => t.id === selection.id) : undefined;
+  const canvasImage = selection?.kind === 'image' ? project.canvasImages.find(img => img.id === selection.id) : undefined;
 
   return (
     <div className="w-[292px] shrink-0 border-l border-line2 bg-panel flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-ink min-h-0">
         {device ? <DeviceProps d={device} />
+          : canvasImage ? <CanvasImageProps img={canvasImage} />
           : icon ? <IconProps i={icon} />
           : deco ? <DecoProps d={deco} />
           : textbox ? <TextBoxProps t={textbox} />
@@ -698,6 +700,75 @@ function TextBoxProps({ t }: { t: any }) {
   );
 }
 
+function CanvasImageProps({ img }: { img: import('../types').CanvasImage }) {
+  const project = useStudio(s => s.project)!;
+  const updateCanvasImage = useStudio(s => s.updateCanvasImage);
+  const removeCanvasImage = useStudio(s => s.removeCanvasImage);
+  const duplicateCanvasImage = useStudio(s => s.duplicateCanvasImage);
+  const checkpoint = useStudio(s => s.checkpoint);
+  const patch = (updates: Partial<import('../types').CanvasImage>) => {
+    checkpoint();
+    updateCanvasImage(img.id, updates);
+  };
+
+  const asset = project.assets.find(a => a.id === img.assetId);
+
+  return (
+    <>
+      <Section title="Canvas Image" right={
+        <div className="flex gap-1">
+          <button className="icon-btn !w-6 !h-6" onClick={() => duplicateCanvasImage(img.id)} title="Duplicate">
+            <IcCopy size={12} />
+          </button>
+          <button className="icon-btn !w-6 !h-6 hover:!text-danger" onClick={() => removeCanvasImage(img.id)} title="Delete">
+            <IcTrash size={12} />
+          </button>
+        </div>
+      }>
+        <div className="text-[11px] mb-2" style={{ color: 'var(--color-dim)', fontFamily: 'var(--font-mono)' }}>
+          {asset?.name || 'Image'}
+        </div>
+      </Section>
+
+      <Section title="Transform">
+        <SliderRow label="X" value={Math.round(img.x * project.canvas.w)} min={0} max={project.canvas.w} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ x: v / project.canvas.w })} />
+        <SliderRow label="Y" value={Math.round(img.y * project.canvas.h)} min={0} max={project.canvas.h} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ y: v / project.canvas.h })} />
+        <SliderRow label="Width" value={Math.round(img.width * project.canvas.w)} min={10} max={project.canvas.w} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ width: v / project.canvas.w })} />
+        <SliderRow label="Height" value={Math.round(img.height * project.canvas.h)} min={10} max={project.canvas.h} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ height: v / project.canvas.h })} />
+        <SliderRow label="Rotation" value={img.rotation} min={-180} max={180} fmt={v => `${v}°`} onStart={checkpoint} onChange={v => patch({ rotation: v })} />
+        <SliderRow label="Opacity" value={Math.round(img.opacity * 100)} min={0} max={100} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch({ opacity: v / 100 })} />
+      </Section>
+
+      <Section title="Image Adjustments">
+        <SliderRow label="Brightness" value={Math.round(img.brightness * 100)} min={50} max={150} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch({ brightness: v / 100 })} />
+        <SliderRow label="Contrast" value={Math.round(img.contrast * 100)} min={50} max={150} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch({ contrast: v / 100 })} />
+        <SliderRow label="Saturation" value={Math.round(img.saturation * 100)} min={0} max={200} fmt={v => `${v}%`} onStart={checkpoint} onChange={v => patch({ saturation: v / 100 })} />
+        <SliderRow label="Blur" value={img.blur} min={0} max={20} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ blur: v })} />
+      </Section>
+
+      <Section title="Appearance">
+        <SliderRow label="Border Radius" value={img.borderRadius} min={0} max={100} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ borderRadius: v })} />
+        <Toggle on={img.shadow} onChange={v => patch({ shadow: v })} label="Shadow" />
+        {img.shadow && (
+          <div className="mt-2">
+            <div className="label-mono mb-1">Border</div>
+            <div className="flex gap-2">
+              <ColorInput value={img.borderColor || '#000000'} onChange={v => patch({ borderColor: v })} label="color" />
+              <SliderRow label="Width" value={img.borderWidth} min={0} max={10} fmt={v => `${v}px`} onStart={checkpoint} onChange={v => patch({ borderWidth: v })} />
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Layer">
+        <SliderRow label="Z-Index" value={img.zIndex} min={0} max={100} onStart={checkpoint} onChange={v => patch({ zIndex: v })} />
+        <Toggle on={img.locked} onChange={v => patch({ locked: v })} label="Locked" />
+        <Toggle on={img.hidden} onChange={v => patch({ hidden: v })} label="Hidden" />
+      </Section>
+    </>
+  );
+}
+
 function IconProps({ i }: { i: import('../types').IconLayer }) {
   const project = useStudio(s => s.project)!;
   const update = useStudio(s => s.update);
@@ -813,6 +884,26 @@ function LayersList() {
               </button>
               <span className="flex-1 text-[12px] truncate" style={{ opacity: d.visible ? 1 : 0.45 }}>{d.name}</span>
               <button className="icon-btn !w-5 !h-5" onClick={(e) => { e.stopPropagation(); reorderDevice(d.id, 1); }}><IcArrowL size={10} className="rotate-90" /></button>
+            </div>
+          );
+        })}
+
+        {/* Canvas Images */}
+        {project.canvasImages?.map((img: any) => {
+          const on = selection?.kind === 'image' && selection.id === img.id;
+          const asset = project.assets.find(a => a.id === img.assetId);
+          return (
+            <div key={img.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'image', id: img.id })}
+              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
+              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); useStudio.getState().updateCanvasImage(img.id, { hidden: !img.hidden }); }}>
+                {img.hidden ? <IcEyeOff size={12} /> : <IcEye size={12} />}
+              </button>
+              <span className="flex-1 text-[12px] truncate" style={{ opacity: img.hidden ? 0.45 : 1 }}>
+                {asset?.name || 'Image'} {img.locked && '🔒'}
+              </span>
+              <button className="icon-btn !w-5 !h-5 hover:!text-danger" onClick={(e) => { e.stopPropagation(); useStudio.getState().removeCanvasImage(img.id); }}>
+                <IcTrash size={10} />
+              </button>
             </div>
           );
         })}

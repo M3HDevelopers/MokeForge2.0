@@ -82,6 +82,9 @@ export function Editor() {
         } else if (selection.kind === 'deco') {
           update(p => ({ ...p, decos: p.decos.filter(d => d.id !== selection.id) }), false);
           setSelection(null);
+        } else if (selection.kind === 'image') {
+          useStudio.getState().removeCanvasImage(selection.id);
+          setSelection(null);
         }
       }
       else if (e.key === 'Escape') {
@@ -135,6 +138,17 @@ export function Editor() {
           update(p => ({ ...p, textboxes: p.textboxes.map(t => t.id === selection.id ? { ...t, x: t.x + (dx / p.canvas.w), y: t.y + (dy / p.canvas.h) } : t) }), false);
         } else if (selection.kind === 'deco') {
           update(p => ({ ...p, decos: p.decos.map(d => d.id === selection.id ? { ...d, x: d.x + (dx / p.canvas.w), y: d.y + (dy / p.canvas.h) } : d) }), false);
+        } else if (selection.kind === 'image') {
+          const currentProject = useStudio.getState().project;
+          if (currentProject) {
+            const img = currentProject.canvasImages.find(i => i.id === selection.id);
+            if (img) {
+              useStudio.getState().updateCanvasImage(selection.id, { 
+                x: img.x + (dx / currentProject.canvas.w),
+                y: img.y + (dy / currentProject.canvas.h)
+              });
+            }
+          }
         }
       }
       // Advanced shortcuts
