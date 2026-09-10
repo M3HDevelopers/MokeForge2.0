@@ -160,6 +160,7 @@ input[type="color"].swatch-input::-webkit-color-swatch { border: none; border-ra
 @keyframes dashMarch { to { stroke-dashoffset: -14; } }
 @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes spin360 { to { transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 
 .anim-fade-up { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; }

@@ -250,11 +250,17 @@ function VariationsTab() {
   const setMood = useStudio(s => s.setMood);
 
   const gen = async () => {
-    setBusy(true);
-    const type = activeTab === 'mixed' ? undefined : activeTab;
-    const newVariations = await makeVariations(type);
-    setVariations(prev => ({ ...prev, [activeTab]: newVariations }));
-    setBusy(false);
+    try {
+      setBusy(true);
+      const type = activeTab === 'mixed' ? undefined : activeTab;
+      const newVariations = await makeVariations(type);
+      setVariations(prev => ({ ...prev, [activeTab]: newVariations }));
+    } catch (error) {
+      console.error('Error generating variations:', error);
+      useStudio.getState().toast('Error generating variations', 'err');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const currentVariations = variations[activeTab];
@@ -310,7 +316,11 @@ function VariationsTab() {
           </div>
         </div>
         <button className="btn btn-acc" onClick={gen} disabled={busy}>
-          {busy ? <IcSpin size={14} /> : <IcRefresh size={14} />}
+          {busy ? (
+            <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <IcRefresh size={14} />
+          )}
           {currentVariations.length ? 'Generate more' : 'Generate 10'}
         </button>
       </div>
