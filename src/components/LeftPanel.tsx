@@ -487,6 +487,7 @@ function ImagesTab() {
   const project = useStudio(s => s.project)!;
   const update = useStudio(s => s.update);
   const checkpoint = useStudio(s => s.checkpoint);
+  const addCanvasImage = useStudio(s => s.addCanvasImage);
   const [cat, setCat] = useState<string>('all');
   const [q, setQ] = useState('');
   const [customImages, setCustomImages] = useState<any[]>([]);
@@ -543,6 +544,37 @@ function ImagesTab() {
     }));
   };
 
+  const addImageToCanvas = (imageId: string) => {
+    checkpoint();
+    const img = list.find((i: any) => i.id === imageId);
+    if (!img) return;
+    
+    // First, add the image to project assets if it's not already there
+    const assetId = img.customSrc ? `custom-asset-${Date.now()}` : imageId;
+    
+    if (img.customSrc && !project.assets.find(a => a.id === assetId)) {
+      // Add to assets first
+      update(p => ({
+        ...p,
+        assets: [...p.assets, {
+          id: assetId,
+          name: img.name,
+          dataUrl: img.customSrc,
+          w: img.width || 2048,
+          h: img.height || 2048,
+        }],
+      }));
+    }
+    
+    // Then add as canvas image at center of canvas
+    const centerX = project.canvas.w / 2;
+    const centerY = project.canvas.h / 2;
+    const imgWidth = Math.min(project.canvas.w * 0.4, (img.width || 2048) * 0.3);
+    const imgHeight = imgWidth * ((img.height || 2048) / (img.width || 2048));
+    
+    addCanvasImage(assetId, centerX - imgWidth / 2, centerY - imgHeight / 2, imgWidth, imgHeight);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -574,7 +606,7 @@ function ImagesTab() {
 
   return (
     <>
-      <Section title={`Image Backgrounds · ${list.length}`}>
+      <Section title={`Image Library · ${list.length}`}>
         <button
           className="btn btn-ghost w-full justify-center !text-[11px] mb-2"
           onClick={() => fileInputRef.current?.click()}
@@ -601,15 +633,27 @@ function ImagesTab() {
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           {list.map((img: any) => (
-            <button key={img.id} onClick={() => applyImage(img.id)} className="group relative overflow-hidden rounded-lg border border-line hover:border-acc/50 transition-all">
+            <div key={img.id} className="group relative overflow-hidden rounded-lg border border-line hover:border-acc/50 transition-all">
               <img src={img.src} alt={img.name} className="w-full aspect-square object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 gap-1">
                 <div className="text-left">
                   <div className="text-[10px] font-medium text-white">{img.name}</div>
-                  <div className="text-[8px] text-white/70">{img.category}</div>
+                  <div className="text-[8px] text-white/70 mb-1.5">{img.category}</div>
                 </div>
+                <button
+                  onClick={() => addImageToCanvas(img.id)}
+                  className="w-full py-1 px-2 rounded bg-acc/90 hover:bg-acc text-white text-[9px] font-medium transition-colors"
+                >
+                  Add to Canvas
+                </button>
+                <button
+                  onClick={() => applyImage(img.id)}
+                  className="w-full py-1 px-2 rounded bg-panel2/90 hover:bg-panel2 text-white text-[9px] font-medium transition-colors"
+                >
+                  Set as Background
+                </button>
               </div>
-            </button>
+            </div>
           ))}
         </div>
         {list.length === 0 && (

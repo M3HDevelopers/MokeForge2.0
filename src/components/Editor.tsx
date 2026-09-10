@@ -82,6 +82,9 @@ export function Editor() {
         } else if (selection.kind === 'deco') {
           update(p => ({ ...p, decos: p.decos.filter(d => d.id !== selection.id) }), false);
           setSelection(null);
+        } else if (selection.kind === 'image') {
+          useStudio.getState().removeCanvasImage(selection.id);
+          setSelection(null);
         }
       }
       else if (e.key === 'Escape') {
@@ -135,6 +138,17 @@ export function Editor() {
           update(p => ({ ...p, textboxes: p.textboxes.map(t => t.id === selection.id ? { ...t, x: t.x + (dx / p.canvas.w), y: t.y + (dy / p.canvas.h) } : t) }), false);
         } else if (selection.kind === 'deco') {
           update(p => ({ ...p, decos: p.decos.map(d => d.id === selection.id ? { ...d, x: d.x + (dx / p.canvas.w), y: d.y + (dy / p.canvas.h) } : d) }), false);
+        } else if (selection.kind === 'image') {
+          const currentProject = useStudio.getState().project;
+          if (currentProject) {
+            const img = currentProject.canvasImages.find(i => i.id === selection.id);
+            if (img) {
+              useStudio.getState().updateCanvasImage(selection.id, { 
+                x: img.x + (dx / currentProject.canvas.w),
+                y: img.y + (dy / currentProject.canvas.h)
+              });
+            }
+          }
         }
       }
       // Advanced shortcuts
@@ -397,6 +411,40 @@ export function Editor() {
           ref={mockupRef} type="file" hidden accept=".json,application/json"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void importMockup(f); e.target.value = ''; }}
         />
+        <div className="w-px h-5 bg-line mx-1" />
+        <button 
+          className="btn" 
+          onClick={() => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (!file) return;
+              
+              // Upload to assets
+              await addFiles([file]);
+              
+              // Get the newly added asset
+              const newAsset = useStudio.getState().project?.assets[useStudio.getState().project!.assets.length - 1];
+              if (!newAsset) return;
+              
+              // Add to canvas
+              const addCanvasImage = useStudio.getState().addCanvasImage;
+              const centerX = project.canvas.w / 2;
+              const centerY = project.canvas.h / 2;
+              const imgWidth = Math.min(project.canvas.w * 0.4, newAsset.w * 0.3);
+              const imgHeight = imgWidth * (newAsset.h / newAsset.w);
+              
+              addCanvasImage(newAsset.id, centerX - imgWidth / 2, centerY - imgHeight / 2, imgWidth, imgHeight);
+              toast('Image added to canvas');
+            };
+            input.click();
+          }}
+        >
+          <IcUpload size={14} />
+          <span>Add Image</span>
+        </button>
         <ShortcutsModal />
       </div>
 

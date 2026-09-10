@@ -1263,6 +1263,52 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoom, setZoom]);
 
+  // Drag and drop support for images
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    // Get drop position relative to canvas
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropX = (e.clientX - rect.left) / zoom;
+    const dropY = (e.clientY - rect.top) / zoom;
+
+    // Upload files to assets
+    const addFiles = useStudio.getState().addFiles;
+    await addFiles(files);
+
+    // Get newly added assets
+    const project = useStudio.getState().project;
+    if (!project) return;
+
+    const newAssets = project.assets.slice(-files.length);
+    const addCanvasImage = useStudio.getState().addCanvasImage;
+
+    // Add each image to canvas at drop position
+    newAssets.forEach((asset, index) => {
+      const imgWidth = Math.min(p.canvas.w * 0.4, asset.w * 0.3);
+      const imgHeight = imgWidth * (asset.h / asset.w);
+      const offsetX = index * 20; // Offset multiple images
+      const offsetY = index * 20;
+      
+      addCanvasImage(
+        asset.id, 
+        dropX - imgWidth / 2 + offsetX, 
+        dropY - imgHeight / 2 + offsetY, 
+        imgWidth, 
+        imgHeight
+      );
+    });
+
+    useStudio.getState().toast(`${files.length} image${files.length > 1 ? 's' : ''} added to canvas`);
+  };
+
   // Pan handlers
   const handlePanStart = (e: React.PointerEvent) => {
     if (toolMode !== 'pan') return;
@@ -1377,6 +1423,8 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
         cursor: toolMode === 'zoom' ? 'zoom-in' : toolMode === 'pan' ? (isPanning ? 'grabbing' : 'grab') : 'default'
       }}
       onPointerDown={handlePanStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       onPointerMove={handlePanMove}
       onPointerUp={handlePanEnd}
       onPointerCancel={handlePanEnd}
