@@ -53,7 +53,25 @@ export const IcLink = (p: P) => <svg {...base(p)}><path d="M10 14a4.5 4.5 0 0 0 
 export const IcCrop = (p: P) => <svg {...base(p)}><path d="M7 2v13a2 2 0 0 0 2 2h13" /><path d="M2 7h13a2 2 0 0 1 2 2v13" /></svg>;
 export const IcRefresh = (p: P) => <svg {...base(p)}><path d="M4.5 12a7.5 7.5 0 0 1 13-5.2L20 9.5m0-5v5h-5" /><path d="M19.5 12a7.5 7.5 0 0 1-13 5.2L4 14.5m0 5v-5h5" /></svg>;
 export const IcDevice = (p: P) => <svg {...base(p)}><rect x="3" y="5" width="14" height="10" rx="1.6" /><path d="M17 9h2.5A1.5 1.5 0 0 1 21 10.5v6A1.5 1.5 0 0 1 19.5 18H10" /><path d="M6 18.5h8" /></svg>;
-export const IcSpin = (p: P) => <svg {...base(p)} className={`anim-spin ${p.className ?? ''}`}><path d="M12 3a9 9 0 1 0 9 9" /></svg>;
+export const IcSpin = (p: P) => {
+  const { size = 16, className = '', ...rest } = p;
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth={1.7} 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      className={`anim-spin ${className}`.trim()}
+      {...rest}
+    >
+      <path d="M12 3a9 9 0 1 0 9 9" />
+    </svg>
+  );
+};
 export const IcStar = (p: P) => <svg {...base(p)}><path d="m12 3.6 2.5 5.2 5.7.7-4.2 4 1.1 5.6L12 16.4l-5.1 2.7 1.1-5.6-4.2-4 5.7-.7Z" /></svg>;
 export const IcHeart = (p: P) => <svg {...base(p)}><path d="M12 20s-7.5-4.6-9-9.3C2 7.6 4 5 6.8 5 8.8 5 10.5 6.2 12 8c1.5-1.8 3.2-3 5.2-3C20 5 22 7.6 21 10.7c-1.5 4.7-9 9.3-9 9.3Z" /></svg>;
 export const IcLock = (p: P) => <svg {...base(p)}><rect x="5.5" y="10.5" width="13" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></svg>;

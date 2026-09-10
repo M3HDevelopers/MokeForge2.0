@@ -209,7 +209,11 @@ function ScreensTab() {
               setLoadingDemo(false);
             }}
           >
-            {loadingDemo ? <IcSpin size={12} /> : <IcPlus size={12} />}
+            {loadingDemo ? (
+              <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <IcPlus size={12} />
+            )}
             Samples
           </button>
           <button className="btn btn-ghost justify-center !text-[11px] !py-1.5" onClick={responsive}>

@@ -831,20 +831,40 @@ export const useStudio = create<StudioState>((set, get) => ({
   },
 
   makeVariations: async (type?: 'vector' | 'image' | 'hybrid') => {
-    const cur = get().project;
-    if (!cur) return [];
-    const themeVars = get().themeVariations;
-    const list = generateVariations(cur, 10, get().mood, type, themeVars.length > 0 ? themeVars : undefined);
-    const snaps: DesignSnapshot[] = [];
-    for (let i = 0; i < list.length; i++) {
-      const p = { ...list[i], assets: cur.assets };
-      const thumb = await makeThumbnail(p, 320);
-      const typeLabel = type ? ` (${type})` : '';
-      const themeLabel = themeVars.length > 0 ? ` [${themeVars[i % themeVars.length].type}]` : '';
-      snaps.push(snapshot(p, `Variation ${String(i + 1).padStart(2, '0')}${typeLabel}${themeLabel}`, thumb));
+    try {
+      const cur = get().project;
+      if (!cur) {
+        console.warn('No project found for variations');
+        return [];
+      }
+      const themeVars = get().themeVariations;
+      const list = generateVariations(cur, 10, get().mood, type, themeVars.length > 0 ? themeVars : undefined);
+      const snaps: DesignSnapshot[] = [];
+      
+      for (let i = 0; i < list.length; i++) {
+        try {
+          const p = { ...list[i], assets: cur.assets };
+          const thumb = await makeThumbnail(p, 320);
+          const typeLabel = type ? ` (${type})` : '';
+          const themeLabel = themeVars.length > 0 ? ` [${themeVars[i % themeVars.length].type}]` : '';
+          snaps.push(snapshot(p, `Variation ${String(i + 1).padStart(2, '0')}${typeLabel}${themeLabel}`, thumb));
+        } catch (thumbError) {
+          console.warn(`Failed to generate thumbnail for variation ${i + 1}:`, thumbError);
+          // Create a fallback snapshot without thumbnail
+          const p = { ...list[i], assets: cur.assets };
+          const typeLabel = type ? ` (${type})` : '';
+          const themeLabel = themeVars.length > 0 ? ` [${themeVars[i % themeVars.length].type}]` : '';
+          snaps.push(snapshot(p, `Variation ${String(i + 1).padStart(2, '0')}${typeLabel}${themeLabel}`, ''));
+        }
+      }
+      
+      set({ variations: snaps, variationsOpen: true });
+      return snaps;
+    } catch (error) {
+      console.error('Error in makeVariations:', error);
+      get().toast('Failed to generate variations', 'err');
+      return [];
     }
-    set({ variations: snaps, variationsOpen: true });
-    return snaps;
   },
 
   applyVariation: (id) => {

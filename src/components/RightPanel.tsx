@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStudio } from '../store';
 import type { BgStyle, DeviceLayer, LightType, Material, PatternKind, ShadowPreset } from '../types';
 import {
@@ -7,7 +8,8 @@ import {
 import { DECO_PRESETS } from '../templates';
 import { ColorInput, PosGrid, Section, Seg, SliderRow, Toggle } from './ui';
 import {
-  IcAlignH, IcAlignV, IcArrowL, IcCopy, IcDown, IcEye, IcEyeOff, IcLayers, IcTrash, IcUp,
+  IcAlignH, IcAlignV, IcArrowL, IcArrowR, IcBg, IcBrand, IcCopy, IcDown, IcEye, IcEyeOff, 
+  IcImage, IcLayers, IcSpark, IcTrash, IcType, IcUp,
 } from '../icons';
 
 const BG_STYLE_OPTS: { id: BgStyle; label: string }[] = [
@@ -867,115 +869,304 @@ function LayersList() {
   const update = useStudio(s => s.update);
   const checkpoint = useStudio(s => s.checkpoint);
   const reorderDevice = useStudio(s => s.reorderDevice);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['devices', 'images', 'text', 'icons', 'decos', 'system']));
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const toggleGroup = (group: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(group)) {
+      newExpanded.delete(group);
+    } else {
+      newExpanded.add(group);
+    }
+    setExpandedGroups(newExpanded);
+  };
 
   const rowCls = (on: boolean) =>
-    `w-full flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors text-left ${on ? 'bg-[rgba(255,107,61,0.1)]' : 'hover:bg-panel2'}`;
+    `w-full flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-all text-left group ${on ? 'bg-[rgba(255,107,61,0.15)] border-l-2 border-acc' : 'hover:bg-panel2 border-l-2 border-transparent'}`;
+
+  const LayerIcon = ({ type }: { type: string }) => {
+    const iconMap: Record<string, JSX.Element> = {
+      device: <IcLayers size={12} />,
+      image: <IcImage size={12} />,
+      textbox: <IcType size={12} />,
+      icon: <IcSpark size={12} />,
+      deco: <IcSpark size={12} />,
+      text: <IcType size={12} />,
+      logo: <IcBrand size={12} />,
+      background: <IcBg size={12} />,
+    };
+    return <span className="text-dim">{iconMap[type] || <IcLayers size={12} />}</span>;
+  };
+
+  const GroupHeader = ({ group, title, count, icon }: { group: string; title: string; count: number; icon: JSX.Element }) => (
+    <div 
+      className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-panel2 rounded-md transition-colors"
+      onClick={() => toggleGroup(group)}
+    >
+      <span className={`text-dim transition-transform ${expandedGroups.has(group) ? 'rotate-90' : ''}`}>
+        <IcArrowR size={10} />
+      </span>
+      <span className="text-dim">{icon}</span>
+      <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-mut">{title}</span>
+      <span className="text-[10px] text-dim bg-panel3 px-1.5 py-0.5 rounded">{count}</span>
+    </div>
+  );
+
+  const totalLayers = 
+    project.devices.length + 
+    (project.canvasImages?.length || 0) + 
+    (project.textboxes?.length || 0) + 
+    (project.icons?.length || 0) + 
+    (project.decos?.length || 0) + 3;
 
   return (
-    <Section title="Layers" right={<IcLayers size={13} />}>
-      <div className="space-y-0.5">
-        {[...project.devices].reverse().map(d => {
-          const on = selection?.kind === 'device' && selection.id === d.id;
-          return (
-            <div key={d.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'device', id: d.id })}
-              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
-              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, devices: p.devices.map(x => x.id === d.id ? { ...x, visible: !x.visible } : x) }), false); }}>
-                {d.visible ? <IcEye size={12} /> : <IcEyeOff size={12} />}
-              </button>
-              <span className="flex-1 text-[12px] truncate" style={{ opacity: d.visible ? 1 : 0.45 }}>{d.name}</span>
-              <button className="icon-btn !w-5 !h-5" onClick={(e) => { e.stopPropagation(); reorderDevice(d.id, 1); }}><IcArrowL size={10} className="rotate-90" /></button>
-            </div>
-          );
-        })}
+    <Section 
+      title="Layers" 
+      right={
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-dim font-mono">{totalLayers}</span>
+          <IcLayers size={13} />
+        </div>
+      }
+    >
+      {/* Search Filter */}
+      {totalLayers > 5 && (
+        <div className="mb-2">
+          <input
+            type="text"
+            placeholder="Search layers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input !py-1 !text-[11px]"
+          />
+        </div>
+      )}
 
-        {/* Canvas Images */}
-        {project.canvasImages?.map((img: any) => {
-          const on = selection?.kind === 'image' && selection.id === img.id;
-          const asset = project.assets.find(a => a.id === img.assetId);
-          return (
-            <div key={img.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'image', id: img.id })}
-              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
-              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); useStudio.getState().updateCanvasImage(img.id, { hidden: !img.hidden }); }}>
-                {img.hidden ? <IcEyeOff size={12} /> : <IcEye size={12} />}
-              </button>
-              <span className="flex-1 text-[12px] truncate" style={{ opacity: img.hidden ? 0.45 : 1 }}>
-                {asset?.name || 'Image'} {img.locked && '🔒'}
-              </span>
-              <button className="icon-btn !w-5 !h-5 hover:!text-danger" onClick={(e) => { e.stopPropagation(); useStudio.getState().removeCanvasImage(img.id); }}>
-                <IcTrash size={10} />
-              </button>
-            </div>
-          );
-        })}
+      <div className="space-y-1 max-h-[400px] overflow-y-auto">
+        {/* Devices Group */}
+        {project.devices.length > 0 && (
+          <>
+            <GroupHeader group="devices" title="Devices" count={project.devices.length} icon={<IcLayers size={12} />} />
+            {expandedGroups.has('devices') && (
+              <div className="space-y-0.5 ml-2">
+                {[...project.devices].reverse().map((d, idx) => {
+                  const on = selection?.kind === 'device' && selection.id === d.id;
+                  const matchesSearch = !searchQuery || d.name.toLowerCase().includes(searchQuery.toLowerCase());
+                  if (!matchesSearch) return null;
+                  return (
+                    <div key={d.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'device', id: d.id })}>
+                      <LayerIcon type="device" />
+                      <button 
+                        className="icon-btn !w-5 !h-5" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, devices: p.devices.map(x => x.id === d.id ? { ...x, visible: !x.visible } : x) }), false); }}
+                      >
+                        {d.visible ? <IcEye size={11} /> : <IcEyeOff size={11} />}
+                      </button>
+                      <span className="flex-1 text-[11px] truncate" style={{ opacity: d.visible ? 1 : 0.45 }}>
+                        {d.name}
+                      </span>
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          className="icon-btn !w-4 !h-4" 
+                          onClick={(e) => { e.stopPropagation(); reorderDevice(d.id, 1); }}
+                          title="Move up"
+                        >
+                          <IcArrowL size={9} className="rotate-90" />
+                        </button>
+                        <button 
+                          className="icon-btn !w-4 !h-4" 
+                          onClick={(e) => { e.stopPropagation(); reorderDevice(d.id, -1); }}
+                          title="Move down"
+                        >
+                          <IcArrowL size={9} className="-rotate-90" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Text Boxes */}
-        {project.textboxes?.map((tb: any) => {
-          const on = selection?.kind === 'textbox' && selection.id === tb.id;
-          return (
-            <div key={tb.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'textbox', id: tb.id })}
-              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
-              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, textboxes: p.textboxes.map(x => x.id === tb.id ? { ...x, opacity: x.opacity === 0 ? 1 : 0 } : x) }), false); }}>
-                <IcEye size={12} />
-              </button>
-              <span className="flex-1 text-[12px] truncate">{tb.name || 'Text Box'}</span>
-              <button className="icon-btn !w-5 !h-5 hover:!text-danger" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, textboxes: p.textboxes.filter(x => x.id !== tb.id) }), false); }}>
-                <IcTrash size={10} />
-              </button>
-            </div>
-          );
-        })}
+        {/* Canvas Images Group */}
+        {project.canvasImages?.length > 0 && (
+          <>
+            <GroupHeader group="images" title="Images" count={project.canvasImages.length} icon={<IcImage size={12} />} />
+            {expandedGroups.has('images') && (
+              <div className="space-y-0.5 ml-2">
+                {project.canvasImages.map((img: any) => {
+                  const on = selection?.kind === 'image' && selection.id === img.id;
+                  const asset = project.assets.find(a => a.id === img.assetId);
+                  const matchesSearch = !searchQuery || (asset?.name || 'Image').toLowerCase().includes(searchQuery.toLowerCase());
+                  if (!matchesSearch) return null;
+                  return (
+                    <div key={img.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'image', id: img.id })}>
+                      <LayerIcon type="image" />
+                      <button 
+                        className="icon-btn !w-5 !h-5" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); useStudio.getState().updateCanvasImage(img.id, { hidden: !img.hidden }); }}
+                      >
+                        {img.hidden ? <IcEyeOff size={11} /> : <IcEye size={11} />}
+                      </button>
+                      <span className="flex-1 text-[11px] truncate" style={{ opacity: img.hidden ? 0.45 : 1 }}>
+                        {asset?.name || 'Image'}
+                      </span>
+                      {img.locked && <span className="text-[10px]">🔒</span>}
+                      <button 
+                        className="icon-btn !w-4 !h-4 hover:!text-danger opacity-0 group-hover:opacity-100 transition-opacity" 
+                        onClick={(e) => { e.stopPropagation(); useStudio.getState().removeCanvasImage(img.id); }}
+                      >
+                        <IcTrash size={9} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Icons */}
-        {project.icons?.map((icon: any) => {
-          const on = selection?.kind === 'icon' && selection.id === icon.id;
-          return (
-            <div key={icon.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'icon', id: icon.id })}
-              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
-              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, icons: p.icons.map(x => x.id === icon.id ? { ...x, opacity: x.opacity === 0 ? 1 : 0 } : x) }), false); }}>
-                <IcEye size={12} />
-              </button>
-              <span className="flex-1 text-[12px] truncate">Icon</span>
-              <button className="icon-btn !w-5 !h-5 hover:!text-danger" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, icons: p.icons.filter(x => x.id !== icon.id) }), false); }}>
-                <IcTrash size={10} />
-              </button>
-            </div>
-          );
-        })}
+        {/* Text Boxes Group */}
+        {project.textboxes?.length > 0 && (
+          <>
+            <GroupHeader group="text" title="Text Boxes" count={project.textboxes.length} icon={<IcType size={12} />} />
+            {expandedGroups.has('text') && (
+              <div className="space-y-0.5 ml-2">
+                {project.textboxes.map((tb: any) => {
+                  const on = selection?.kind === 'textbox' && selection.id === tb.id;
+                  const matchesSearch = !searchQuery || (tb.name || 'Text Box').toLowerCase().includes(searchQuery.toLowerCase());
+                  if (!matchesSearch) return null;
+                  return (
+                    <div key={tb.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'textbox', id: tb.id })}>
+                      <LayerIcon type="textbox" />
+                      <button 
+                        className="icon-btn !w-5 !h-5" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, textboxes: p.textboxes.map(x => x.id === tb.id ? { ...x, opacity: x.opacity === 0 ? 1 : 0 } : x) }), false); }}
+                      >
+                        {tb.opacity > 0 ? <IcEye size={11} /> : <IcEyeOff size={11} />}
+                      </button>
+                      <span className="flex-1 text-[11px] truncate">{tb.name || 'Text Box'}</span>
+                      <button 
+                        className="icon-btn !w-4 !h-4 hover:!text-danger opacity-0 group-hover:opacity-100 transition-opacity" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, textboxes: p.textboxes.filter(x => x.id !== tb.id) }), false); }}
+                      >
+                        <IcTrash size={9} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Decorations */}
-        {project.decos?.map((deco: any) => {
-          const on = selection?.kind === 'deco' && selection.id === deco.id;
-          return (
-            <div key={deco.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'deco', id: deco.id })}
-              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
-              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, decos: p.decos.map(x => x.id === deco.id ? { ...x, opacity: x.opacity === 0 ? 1 : 0 } : x) }), false); }}>
-                <IcEye size={12} />
-              </button>
-              <span className="flex-1 text-[12px] truncate">Decoration</span>
-              <button className="icon-btn !w-5 !h-5 hover:!text-danger" onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, decos: p.decos.filter(x => x.id !== deco.id) }), false); }}>
-                <IcTrash size={10} />
-              </button>
-            </div>
-          );
-        })}
+        {/* Icons Group */}
+        {project.icons?.length > 0 && (
+          <>
+            <GroupHeader group="icons" title="Icons" count={project.icons.length} icon={<IcSpark size={12} />} />
+            {expandedGroups.has('icons') && (
+              <div className="space-y-0.5 ml-2">
+                {project.icons.map((icon: any) => {
+                  const on = selection?.kind === 'icon' && selection.id === icon.id;
+                  return (
+                    <div key={icon.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'icon', id: icon.id })}>
+                      <LayerIcon type="icon" />
+                      <button 
+                        className="icon-btn !w-5 !h-5" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, icons: p.icons.map(x => x.id === icon.id ? { ...x, opacity: x.opacity === 0 ? 1 : 0 } : x) }), false); }}
+                      >
+                        {icon.opacity > 0 ? <IcEye size={11} /> : <IcEyeOff size={11} />}
+                      </button>
+                      <span className="flex-1 text-[11px] truncate">Icon</span>
+                      <button 
+                        className="icon-btn !w-4 !h-4 hover:!text-danger opacity-0 group-hover:opacity-100 transition-opacity" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, icons: p.icons.filter(x => x.id !== icon.id) }), false); }}
+                      >
+                        <IcTrash size={9} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
-        {([
-          { kind: 'text' as const, label: 'Text block', on: project.text.enabled, toggle: () => update(p => ({ ...p, text: { ...p.text, enabled: !p.text.enabled } }), false) },
-          { kind: 'logo' as const, label: 'Logo', on: project.logo.enabled, toggle: () => update(p => ({ ...p, logo: { ...p.logo, enabled: !p.logo.enabled } }), false) },
-          { kind: 'background' as const, label: 'Background', on: true, toggle: () => undefined },
-        ]).map(l => {
-          const on = selection?.kind === l.kind;
-          return (
-            <div key={l.kind} className={rowCls(!!on)} onClick={() => setSelection({ kind: l.kind })}
-              style={on ? { boxShadow: 'inset 2px 0 0 var(--color-acc)' } : undefined}>
-              <button className="icon-btn !w-6 !h-6" onClick={(e) => { e.stopPropagation(); checkpoint(); l.toggle(); }}>
-                {l.on ? <IcEye size={12} /> : <IcEyeOff size={12} />}
-              </button>
-              <span className="flex-1 text-[12px]" style={{ opacity: l.on ? 1 : 0.45 }}>{l.label}</span>
-            </div>
-          );
-        })}
+        {/* Decorations Group */}
+        {project.decos?.length > 0 && (
+          <>
+            <GroupHeader group="decos" title="Decorations" count={project.decos.length} icon={<IcSpark size={12} />} />
+            {expandedGroups.has('decos') && (
+              <div className="space-y-0.5 ml-2">
+                {project.decos.map((deco: any) => {
+                  const on = selection?.kind === 'deco' && selection.id === deco.id;
+                  return (
+                    <div key={deco.id} className={rowCls(!!on)} onClick={() => setSelection({ kind: 'deco', id: deco.id })}>
+                      <LayerIcon type="deco" />
+                      <button 
+                        className="icon-btn !w-5 !h-5" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, decos: p.decos.map(x => x.id === deco.id ? { ...x, opacity: x.opacity === 0 ? 1 : 0 } : x) }), false); }}
+                      >
+                        {deco.opacity > 0 ? <IcEye size={11} /> : <IcEyeOff size={11} />}
+                      </button>
+                      <span className="flex-1 text-[11px] truncate">Decoration</span>
+                      <button 
+                        className="icon-btn !w-4 !h-4 hover:!text-danger opacity-0 group-hover:opacity-100 transition-opacity" 
+                        onClick={(e) => { e.stopPropagation(); checkpoint(); update(p => ({ ...p, decos: p.decos.filter(x => x.id !== deco.id) }), false); }}
+                      >
+                        <IcTrash size={9} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* System Elements Group */}
+        <GroupHeader group="system" title="System" count={3} icon={<IcLayers size={12} />} />
+        {expandedGroups.has('system') && (
+          <div className="space-y-0.5 ml-2">
+            {([
+              { kind: 'text' as const, label: 'Text Block', on: project.text.enabled, toggle: () => update(p => ({ ...p, text: { ...p.text, enabled: !p.text.enabled } }), false) },
+              { kind: 'logo' as const, label: 'Logo', on: project.logo.enabled, toggle: () => update(p => ({ ...p, logo: { ...p.logo, enabled: !p.logo.enabled } }), false) },
+              { kind: 'background' as const, label: 'Background', on: true, toggle: () => undefined },
+            ]).map(l => {
+              const on = selection?.kind === l.kind;
+              return (
+                <div key={l.kind} className={rowCls(!!on)} onClick={() => setSelection({ kind: l.kind })}>
+                  <LayerIcon type={l.kind} />
+                  <button className="icon-btn !w-5 !h-5" onClick={(e) => { e.stopPropagation(); checkpoint(); l.toggle(); }}>
+                    {l.on ? <IcEye size={11} /> : <IcEyeOff size={11} />}
+                  </button>
+                  <span className="flex-1 text-[11px]" style={{ opacity: l.on ? 1 : 0.45 }}>{l.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Quick Actions */}
+      {totalLayers > 0 && (
+        <div className="mt-3 pt-3 border-t border-line2 flex gap-1">
+          <button 
+            className="btn-ghost !text-[10px] !py-1 flex-1"
+            onClick={() => setExpandedGroups(new Set(['devices', 'images', 'text', 'icons', 'decos', 'system']))}
+          >
+            Expand All
+          </button>
+          <button 
+            className="btn-ghost !text-[10px] !py-1 flex-1"
+            onClick={() => setExpandedGroups(new Set())}
+          >
+            Collapse All
+          </button>
+        </div>
+      )}
     </Section>
   );
 }

@@ -1,5 +1,8 @@
 import type { Asset, DeviceLayer, Project } from './types';
 import { clamp, computeFit, DEVICE_META, deviceGeometry, luminance, SHADOWS, textOn } from './templates';
+import { renderBackground } from './backgrounds';
+import { drawDecos } from './decos';
+import { ICONS } from './iconLibrary';
 
 const imgCache = new Map<string, HTMLImageElement>();
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -217,17 +220,139 @@ export async function renderProject(p: Project, opts: { scale?: number; transpar
   ctx.imageSmoothingQuality = 'high';
 
   const transparent = !!opts.transparent;
+  
+  // Render background with full effects (gradients, patterns, textures, lighting)
   if (!transparent) {
-    ctx.fillStyle = p.background.c1;
-    ctx.fillRect(0, 0, p.canvas.w, p.canvas.h);
+    await renderBackground(ctx, p.background, p.canvas.w, p.canvas.h, p.accents);
   }
 
+  // Render decorations (back layer)
+  drawDecos(ctx, p.decos || [], p.canvas.w, p.canvas.h, p.accents, 'back');
+
+  // Render devices
   const sorted = [...p.devices].sort((a, b) => (a.z ?? 0) - (b.z ?? 0));
   for (const d of sorted) {
     if (!d.visible) continue;
     await drawDevice(ctx, d, p.assets.find(a => a.id === d.assetId), p.accents.a1);
   }
 
+  // Render decorations (front layer)
+  drawDecos(ctx, p.decos || [], p.canvas.w, p.canvas.h, p.accents, 'front');
+
+  // Render canvas images
+  if (p.canvasImages) {
+    for (const img of p.canvasImages) {
+      if (img.hidden) continue;
+      const asset = p.assets.find(a => a.id === img.assetId);
+      if (!asset) continue;
+      
+      const imgW = img.width * p.canvas.w;
+      const imgH = img.height * p.canvas.h;
+      const x = img.x * p.canvas.w;
+      const y = img.y * p.canvas.h;
+      
+      try {
+        const image = await loadImage(asset.dataUrl);
+        ctx.save();
+        ctx.globalAlpha = img.opacity;
+        ctx.translate(x + imgW / 2, y + imgH / 2);
+        ctx.rotate((img.rotation * Math.PI) / 180);
+        
+        // Apply filters
+        const filters = [];
+        if (img.brightness !== 1) filters.push(`brightness(${img.brightness})`);
+        if (img.contrast !== 1) filters.push(`contrast(${img.contrast})`);
+        if (img.saturation !== 1) filters.push(`saturate(${img.saturation})`);
+        if (img.blur > 0) filters.push(`blur(${img.blur}px)`);
+        if (filters.length > 0) ctx.filter = filters.join(' ');
+        
+        ctx.drawImage(image, -imgW / 2, -imgH / 2, imgW, imgH);
+        
+        // Apply border if specified
+        if (img.borderColor && img.borderWidth > 0) {
+          ctx.strokeStyle = img.borderColor;
+          ctx.lineWidth = img.borderWidth;
+          ctx.strokeRect(-imgW / 2, -imgH / 2, imgW, imgH);
+        }
+        
+        // Apply shadow if enabled
+        if (img.shadow) {
+          ctx.shadowColor = 'rgba(0,0,0,0.3)';
+          ctx.shadowBlur = 12;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 4;
+        }
+        
+        ctx.restore();
+      } catch (e) {
+        // Skip if image fails to load
+      }
+    }
+  }
+
+  // Render icons
+  if (p.icons) {
+    for (const icon of p.icons) {
+      const iconDef = ICONS.find(i => i.id === icon.iconId);
+      if (!iconDef) continue;
+      
+      const size = icon.size * Math.min(p.canvas.w, p.canvas.h);
+      const x = icon.x * p.canvas.w - size / 2;
+      const y = icon.y * p.canvas.h - size / 2;
+      
+      ctx.save();
+      ctx.globalAlpha = icon.opacity;
+      ctx.translate(x + size / 2, y + size / 2);
+      ctx.rotate((icon.rotation * Math.PI) / 180);
+      
+      // Draw background if specified
+      if (icon.bgStyle !== 'none' && icon.bgColor) {
+        const bgColor = icon.bgColor;
+        if (icon.bgStyle === 'gradient') {
+          const gradient = ctx.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
+          gradient.addColorStop(0, bgColor + '88');
+          gradient.addColorStop(1, bgColor);
+          ctx.fillStyle = gradient;
+        } else if (icon.bgStyle === 'glass') {
+          ctx.fillStyle = bgColor + '33';
+        } else {
+          ctx.fillStyle = bgColor;
+        }
+        
+        if (icon.bgStyle === 'circle') {
+          ctx.beginPath();
+          ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-size / 2, -size / 2, size, size);
+        }
+        
+        if (icon.bgStyle === 'glass') {
+          ctx.strokeStyle = bgColor + '66';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+      
+      // Draw icon
+      ctx.strokeStyle = icon.color;
+      ctx.lineWidth = 1.7;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      // Scale icon to fit
+      const iconScale = size / 24;
+      ctx.scale(iconScale, iconScale);
+      
+      // Draw icon path
+      const path = new Path2D(iconDef.d);
+      ctx.stroke(path);
+      
+      ctx.restore();
+    }
+  }
+
+  // Render text block
   drawTextBlock(ctx, p);
   return canvas;
 }

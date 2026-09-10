@@ -89,7 +89,11 @@ export function Dashboard() {
             </h1>
             <div className="flex gap-2.5 pb-2">
               <button className="btn !py-2.5 !px-5" onClick={() => void loadDemo()} disabled={demoLoading}>
-                {demoLoading ? <IcSpin size={15} /> : <IcArrowR size={15} />}
+                {demoLoading ? (
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <IcArrowR size={15} />
+                )}
                 {demoLoading ? 'Building demo…' : 'Open demo project'}
               </button>
               <button className="btn btn-acc !py-2.5 !px-5" onClick={() => setModal(true)}>

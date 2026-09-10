@@ -95,7 +95,7 @@ export function ExportModal() {
           <div className="flex-1 checker p-6 flex items-center justify-center" style={{ minHeight: 380 }}>
             {preview
               ? <img src={preview} alt="preview" className="max-w-full max-h-[340px] rounded-md shadow-[0_18px_50px_rgba(0,0,0,0.5)] anim-fade-in" />
-              : <IcSpin size={22} />}
+              : <div className="w-6 h-6 border-2 border-acc border-t-transparent rounded-full animate-spin" />}
           </div>
 
           <div className="w-[320px] border-l border-line2 bg-ink p-4 space-y-4">
@@ -155,7 +155,11 @@ export function ExportModal() {
 
             <div className="flex gap-2 pt-1">
               <button className="btn btn-acc flex-1 justify-center !py-2.5" disabled={busy} onClick={() => void doExport(false)}>
-                {busy ? <IcSpin size={15} /> : <IcDownload size={15} />}
+                {busy ? (
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <IcDownload size={15} />
+                )}
                 {busy ? 'Rendering…' : 'Download'}
               </button>
               <button className="btn" disabled={busy || format === 'webp'} onClick={() => void doExport(true)} title="Copy PNG/JPG to clipboard">
