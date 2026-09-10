@@ -236,8 +236,9 @@ async function paintImageBackground(ctx: CanvasRenderingContext2D, img: ImageBgS
   const src = img.customSrc || (img.imageId ? findImage(img.imageId)?.src : null);
   if (!src) return;
   
-  const image = await loadImage(src);
-  const iw = image.naturalWidth, ih = image.naturalHeight;
+  try {
+    const image = await loadImage(src);
+    const iw = image.naturalWidth, ih = image.naturalHeight;
   
   ctx.save();
   
@@ -298,6 +299,12 @@ async function paintImageBackground(ctx: CanvasRenderingContext2D, img: ImageBgS
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.restore();
+  } catch (error) {
+    console.warn('Failed to load image background:', error);
+    // Fallback: just fill with background color
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, w, h);
+  }
 }
 
 function paintImageOverlays(ctx: CanvasRenderingContext2D, img: ImageBgState, w: number, h: number) {
