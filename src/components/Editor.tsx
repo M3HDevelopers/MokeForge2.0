@@ -411,40 +411,6 @@ export function Editor() {
           ref={mockupRef} type="file" hidden accept=".json,application/json"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void importMockup(f); e.target.value = ''; }}
         />
-        <div className="w-px h-5 bg-line mx-1" />
-        <button 
-          className="btn" 
-          onClick={() => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = async (e) => {
-              const file = (e.target as HTMLInputElement).files?.[0];
-              if (!file) return;
-              
-              // Upload to assets
-              await addFiles([file]);
-              
-              // Get the newly added asset
-              const newAsset = useStudio.getState().project?.assets[useStudio.getState().project!.assets.length - 1];
-              if (!newAsset) return;
-              
-              // Add to canvas
-              const addCanvasImage = useStudio.getState().addCanvasImage;
-              const centerX = project.canvas.w / 2;
-              const centerY = project.canvas.h / 2;
-              const imgWidth = Math.min(project.canvas.w * 0.4, newAsset.w * 0.3);
-              const imgHeight = imgWidth * (newAsset.h / newAsset.w);
-              
-              addCanvasImage(newAsset.id, centerX - imgWidth / 2, centerY - imgHeight / 2, imgWidth, imgHeight);
-              toast('Image added to canvas');
-            };
-            input.click();
-          }}
-        >
-          <IcUpload size={14} />
-          <span>Add Image</span>
-        </button>
         <ShortcutsModal />
       </div>
 

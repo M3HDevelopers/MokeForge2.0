@@ -1126,7 +1126,7 @@ export const useStudio = create<StudioState>((set, get) => ({
     };
     
     get().update(p => ({ ...p, canvasImages: [...p.canvasImages, newImage] }));
-    set({ selection: { kind: 'image', id: newImage.id } });
+    set(s => ({ selection: { kind: 'image', id: newImage.id } }));
   },
   
   updateCanvasImage: (id, updates) => {

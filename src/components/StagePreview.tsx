@@ -1242,6 +1242,7 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
   const setZoom = useStudio(s => s.setZoom);
   const setSelection = useStudio(s => s.setSelection);
   const selection = useStudio(s => s.selection);
+  const addCanvasImage = useStudio(s => s.addCanvasImage);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<{ v: number | null; h: number | null }>({ v: null, h: null });
   const [distanceInfo, setDistanceInfo] = useState<{ left?: number; right?: number; top?: number; bottom?: number; gapX?: number; gapY?: number } | null>(null);
@@ -1271,6 +1272,38 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+    
+    // Check if dragging from assets (has asset-id)
+    const assetId = e.dataTransfer.getData('text/asset-id');
+    if (assetId) {
+      // Dragging from assets panel
+      const project = useStudio.getState().project;
+      if (!project) return;
+      
+      const asset = project.assets.find(a => a.id === assetId);
+      if (!asset) return;
+      
+      // Get drop position relative to canvas
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dropX = (e.clientX - rect.left) / zoom;
+      const dropY = (e.clientY - rect.top) / zoom;
+      
+      const imgWidth = Math.min(p.canvas.w * 0.4, asset.w * 0.3);
+      const imgHeight = imgWidth * (asset.h / asset.w);
+      
+      addCanvasImage(
+        asset.id,
+        dropX - imgWidth / 2,
+        dropY - imgHeight / 2,
+        imgWidth,
+        imgHeight
+      );
+      
+      useStudio.getState().toast('Image added to canvas');
+      return;
+    }
+    
+    // Otherwise, check if dragging files from computer
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
     if (files.length === 0) return;
 
@@ -1288,7 +1321,6 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
     if (!project) return;
 
     const newAssets = project.assets.slice(-files.length);
-    const addCanvasImage = useStudio.getState().addCanvasImage;
 
     // Add each image to canvas at drop position
     newAssets.forEach((asset, index) => {
