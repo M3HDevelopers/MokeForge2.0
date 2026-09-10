@@ -1137,6 +1137,105 @@ function DeviceNode({ d, guides, setGuides, setDistanceInfo, onDragStart, onDrag
   );
 }
 
+function CanvasImageLayer({ canvasImg, canvasW, canvasH, asset, onDragStart, onDragEnd }: { 
+  canvasImg: any; 
+  canvasW: number; 
+  canvasH: number; 
+  asset: any; 
+  onDragStart: () => void; 
+  onDragEnd: () => void;
+}) {
+  const setSelection = useStudio(s => s.setSelection);
+  const addToSelection = useStudio(s => s.addToSelection);
+  const selection = useStudio(s => s.selection);
+  const updateCanvasImage = useStudio(s => s.updateCanvasImage);
+  const checkpoint = useStudio(s => s.checkpoint);
+  const zoom = useStudio(s => s.zoom);
+  const selected = useStudio(s => s.selection?.kind === 'image' && (s.selection.id === canvasImg.id || s.selection.ids?.includes(canvasImg.id)));
+  
+  if (!asset || canvasImg.hidden) return null;
+  
+  const imgW = canvasImg.width * canvasW;
+  const imgH = canvasImg.height * canvasH;
+  const x = canvasImg.x * canvasW;
+  const y = canvasImg.y * canvasH;
+  
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  
+  const onDown = (e: RPointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    
+    if (canvasImg.locked) return;
+    
+    // Multi-select with Shift key
+    if (e.shiftKey) {
+      if (selection?.kind === 'image' && selection.ids?.includes(canvasImg.id)) {
+        useStudio.getState().removeFromSelection('image', canvasImg.id);
+      } else {
+        addToSelection('image', canvasImg.id);
+      }
+    } else {
+      setSelection({ kind: 'image', id: canvasImg.id, ids: [canvasImg.id] });
+    }
+    
+    checkpoint();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: canvasImg.x, oy: canvasImg.y };
+    onDragStart();
+  };
+  
+  const onMove = (e: RPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || canvasImg.locked) return;
+    const dx = (e.clientX - drag.sx) / zoom / canvasW;
+    const dy = (e.clientY - drag.sy) / zoom / canvasH;
+    updateCanvasImage(canvasImg.id, { x: drag.ox + dx, y: drag.oy + dy });
+  };
+  
+  const onUp = () => {
+    dragRef.current = null;
+    onDragEnd();
+  };
+  
+  const filterStyle = [
+    canvasImg.brightness !== 1 ? `brightness(${canvasImg.brightness})` : '',
+    canvasImg.contrast !== 1 ? `contrast(${canvasImg.contrast})` : '',
+    canvasImg.saturation !== 1 ? `saturate(${canvasImg.saturation})` : '',
+    canvasImg.blur > 0 ? `blur(${canvasImg.blur}px)` : '',
+  ].filter(Boolean).join(' ') || undefined;
+  
+  return (
+    <div
+      className={`absolute ${canvasImg.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selected ? 'sel-ring' : ''}`}
+      style={{
+        left: x,
+        top: y,
+        width: imgW,
+        height: imgH,
+        transform: `rotate(${canvasImg.rotation}deg)`,
+        opacity: canvasImg.opacity,
+        borderRadius: canvasImg.borderRadius,
+        border: canvasImg.borderColor ? `${canvasImg.borderWidth}px solid ${canvasImg.borderColor}` : undefined,
+        boxShadow: canvasImg.shadow ? '0 4px 12px rgba(0,0,0,0.3)' : undefined,
+        pointerEvents: 'auto',
+        zIndex: canvasImg.zIndex + 100,
+      }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
+      <img
+        src={asset.dataUrl}
+        alt={canvasImg.name}
+        draggable={false}
+        className="w-full h-full object-cover"
+        style={{ filter: filterStyle }}
+      />
+    </div>
+  );
+}
+
 export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?: 'select' | 'zoom' | 'pan'; onContextMenu?: (e: React.MouseEvent) => void }) {
   const p = useStudio(s => s.project)!;
   const zoom = useStudio(s => s.zoom);
@@ -1325,6 +1424,9 @@ export function StagePreview({ toolMode = 'select', onContextMenu }: { toolMode?
             ))}
             {p.textboxes.map(textbox => (
               <TextBoxLayer key={textbox.id} textbox={textbox} canvasW={p.canvas.w} canvasH={p.canvas.h} onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)} />
+            ))}
+            {p.canvasImages.map(canvasImg => (
+              <CanvasImageLayer key={canvasImg.id} canvasImg={canvasImg} canvasW={p.canvas.w} canvasH={p.canvas.h} asset={p.assets.find(a => a.id === canvasImg.assetId)} onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)} />
             ))}
             <LogoOverlay p={p} />
             <TextOverlay p={p} />

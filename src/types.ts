@@ -247,11 +247,70 @@ export interface Project {
   mood: Mood;
   icons: IconLayer[];
   textboxes: TextBox[];
+  canvasImages: CanvasImage[];
+  groups: Group[];
 }
+
+/* ================= PART 1: Canvas Objects ================= */
+export type CanvasObjectType = 'device' | 'image' | 'textbox' | 'icon' | 'deco' | 'group';
+
+export interface CanvasImage {
+  id: string;
+  assetId: string;
+  x: number; // percentage 0-1
+  y: number; // percentage 0-1
+  width: number; // percentage 0-1
+  height: number; // percentage 0-1
+  rotation: number; // degrees
+  opacity: number; // 0-1
+  locked: boolean;
+  hidden: boolean;
+  name: string;
+  zIndex: number;
+  // Image adjustments
+  brightness: number; // 0.5-1.5
+  contrast: number; // 0.5-1.5
+  saturation: number; // 0-2
+  blur: number; // px
+  // Border/Effects
+  borderRadius: number; // px
+  shadow: boolean;
+  borderColor: string | null;
+  borderWidth: number;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  objects: { type: CanvasObjectType; id: string }[];
+  x: number;
+  y: number;
+  locked: boolean;
+  hidden: boolean;
+}
+
+export interface CanvasObjectTransform {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+export interface SelectionBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type CursorState = 'default' | 'select' | 'move' | 'resize-nw' | 'resize-ne' | 'resize-sw' | 'resize-se' | 'resize-n' | 'resize-s' | 'resize-e' | 'resize-w' | 'rotate' | 'pan' | 'zoom' | 'locked';
+
+export type SelectionMode = 'contain' | 'intersect';
 
 /* ================= editor state ================= */
 export interface Selection {
-  kind: 'device' | 'text' | 'logo' | 'background' | 'deco' | 'icon' | 'textbox';
+  kind: 'device' | 'text' | 'logo' | 'background' | 'deco' | 'icon' | 'textbox' | 'image';
   id?: string;
   ids?: string[]; // Multi-select support
 }
